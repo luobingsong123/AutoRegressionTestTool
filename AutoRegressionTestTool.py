@@ -8,7 +8,7 @@ import os
 
 class Logging(object):
     def __init__(self, file_name):
-        self.filename = open(file_name, 'a')
+        self.filename = open(file_name, 'w')
 
     def logging(self, msg):
         self.filename.write(msg + '\n')
@@ -48,7 +48,8 @@ def start(*args):
     # 执行测试
     for i in range(len(all_step_dict[case])):
         step_result[all_step_dict[case][i]] = class_list[i].start_test()
-        sleep(5)
+        print(step_result[all_step_dict[case][i]])
+        sleep(3)
     # STEP执行完成后断开ssh连接
     for i in range(len(all_step_dict[case])):
         class_list[i].close()
@@ -65,10 +66,12 @@ class PyShell(object):
         self.user = kwargs['user']
         self.password = str(kwargs['password'])
         self.shell_str = kwargs['shell_str']
-        self.wait_str = kwargs['wait_str']
+        self.wait_str = kwargs['wait_str'].split('|')
         self.wait_time = kwargs['wait_time']
         self.timeout = kwargs['timeout']
-        self.fail_str = kwargs['fail_str']
+        self.fail_str = kwargs['fail_str'].split('|')
+        print(self.wait_str)
+        print(self.fail_str)
         # transport和channel
         self.transport = ''
         self.channel = ''
@@ -121,17 +124,14 @@ class PyShell(object):
         times = 0
         result = self.send(self.shell_str)
         while times < self.timeout:
-            # data = result.replace(result.split("\n")[-1], "")
-            if self.wait_str in result:
-                # print(result.split("\n")[-1] + data.strip("\n"))
-                log.logging(result)
-                log.logging(result)
-                return True, self.comments + ' pass'
-            elif self.fail_str in result:
-                log.logging(result)
-                # print(result.split("\n")[-1] + data.strip("\n"))
-                return False, self.comments + ' fail'
-            # print(result.split("\n")[-1] + data.strip("\n"))
+            for i in self.wait_str:
+                if i in result:
+                    log.logging(result)
+                    return True, self.comments + ' pass'
+            for i in self.fail_str:
+                if i in result:
+                    log.logging(result)
+                    return True, self.comments + ' fail'
             log.logging(result)
             wait_time = 0
             while wait_time < self.wait_time:
@@ -153,7 +153,8 @@ if __name__ == '__main__':
         # 用例内容获取
         # all_testcase[test_data_dict,  case_index,  case_step_index]
         filename = input("Enter the file path/file name：")
-        log = Logging(os.path.basename(filename).split('.')[0] + '.log')
+        datetime = time.strftime("%Y-%m-%d_%H-%M-%S", time.localtime())
+        log = Logging(os.path.basename(filename).split('.')[0] + datetime + '.log')
         all_data = case_read(filename)
         all_test_data = all_data[0]     # dict
         all_case_index = all_data[1]    # list
@@ -167,10 +168,10 @@ if __name__ == '__main__':
             # case内操作
             class_list = []
             log.logging('START TESTING CASE: %s' % case)
-            log.logging('THE CASE START TIME: %s' % time.strftime("%Y.%m.%d %H:%M", time.localtime()))
+            log.logging('THE CASE START TIME: %s' % datetime)
             for step in all_step_dict[case]:
                 # step的ssh初始化
-                step_init = PyShell(**all_test_data[case][step])
+                step_init = PyShell(**all_test_data[case][step])  # 传递列表进去
                 # 初始化后按case放进list
                 class_list.append(step_init)
             res = start(*all_step_dict[case],*class_list)
