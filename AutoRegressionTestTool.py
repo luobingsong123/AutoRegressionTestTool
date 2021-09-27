@@ -16,8 +16,8 @@ class Logging(object):
 
 
 # 读用例文件
-def case_read(file):
-    df = pd.read_excel(file)  # 读取xlsx中第一个sheet
+def case_read(file_name):
+    df = pd.read_excel(file_name)  # 读取xlsx中第一个sheet
     test_data_dict = {}
     case_index = []  # case索引
     case_step_dict = {}    # step索引
@@ -25,7 +25,7 @@ def case_read(file):
         # 根据i来获取每一行指定的数据 并利用to_dict转成字典
         read_case = df.loc[i,['case', ]].to_list()
         read_step = df.loc[i,['step', ]].to_list()
-        content = df.loc[i,['comments', 'server', 'user', 'password', 'shell_str', 'wait_str', 'wait_time', 'timeout', 'fail_str', ]].to_dict()
+        content = df.loc[i,['comments', 'server', 'user', 'password', 'shell_str', 'wait_str', 'wait_time', 'timeout', 'fail_str']].to_dict()
         # case名称做键，step做值，剩下的东西做step里的子键值
         try:
             test_data_dict[read_case[0]][read_step[0]] = content
@@ -42,13 +42,33 @@ def case_read(file):
     return test_data_dict, case_index, case_step_dict
 
 
+# 输出测试结果为表格
+def write_test_result(**kwargs):
+    test_case = []
+    test_step = []
+    test_result = []
+    test_comments = []
+    for k in kwargs.keys():
+        for j in kwargs[k].keys():
+            log.logging(
+                f'TEST CASE {k} : STEP {j} RESULT {kwargs[k][j][0]}, TEST COMMENTS : {kwargs[k][j][1]}')
+            test_case.append(k)
+            test_step.append(j)
+            if kwargs[k][j][0]:
+                test_result.append('pass')
+            else:
+                test_result.append('fail')
+            test_comments.append(kwargs[k][j][1])
+    df = pd.DataFrame({'test_case': test_case, 'test_step': test_step,'test_result':test_result,'test_comments': test_comments})
+    df.to_excel(file + '.xlsx')
+
+
 # 执行用例,每个step对应的连接都作为参数传入；
 def start(*args):
     step_result = {}
     # 执行测试
     for i in range(len(all_step_dict[case])):
         step_result[all_step_dict[case][i]] = class_list[i].start_test()
-        print(step_result[all_step_dict[case][i]])
         sleep(3)
     # STEP执行完成后断开ssh连接
     for i in range(len(all_step_dict[case])):
@@ -65,13 +85,11 @@ class PyShell(object):
         self.server = kwargs['server']
         self.user = kwargs['user']
         self.password = str(kwargs['password'])
-        self.shell_str = kwargs['shell_str']
+        self.shell_str = kwargs['shell_str'].split('|')
         self.wait_str = kwargs['wait_str'].split('|')
         self.wait_time = kwargs['wait_time']
         self.timeout = kwargs['timeout']
         self.fail_str = kwargs['fail_str'].split('|')
-        print(self.wait_str)
-        print(self.fail_str)
         # transport和channel
         self.transport = ''
         self.channel = ''
@@ -111,7 +129,6 @@ class PyShell(object):
         # 发送要执行的命令
         self.channel.send(cmd)
         # 回显很长的命令可能执行较久，通过循环分批次取回回显,执行成功返回true,失败返回false
-        # 可能存在回显不连续的现象
         while True:
             sleep(0.5)
             ret = self.channel.recv(-1)
@@ -122,7 +139,10 @@ class PyShell(object):
     # 启动命令下发&回显匹配
     def start_test(self):
         times = 0
-        result = self.send(self.shell_str)
+        if len(self.shell_str) > 1:
+            for i in self.shell_str[0:-1]:
+                self.send(i)
+        result = self.send(self.shell_str[-1])
         while times < self.timeout:
             for i in self.wait_str:
                 if i in result:
@@ -131,13 +151,13 @@ class PyShell(object):
             for i in self.fail_str:
                 if i in result:
                     log.logging(result)
-                    return True, self.comments + ' fail'
+                    return False, self.comments + ' fail'
             log.logging(result)
             wait_time = 0
             while wait_time < self.wait_time:
                 times += 1
                 wait_time += 1
-                sleep(0.9)
+                sleep(1)
             d = '\n'
             result = self.send(d)
         return False, self.comments + ' timeout'
@@ -151,16 +171,15 @@ class PyShell(object):
 if __name__ == '__main__':
     while True:
         # 用例内容获取
-        # all_testcase[test_data_dict,  case_index,  case_step_index]
         filename = input("Enter the file path/file name：")
         datetime = time.strftime("%Y-%m-%d_%H-%M-%S", time.localtime())
-        log = Logging(os.path.basename(filename).split('.')[0] + datetime + '.log')
+        file = os.path.basename(filename).split('.')[0] + datetime
+        log = Logging(file + '.log')
         all_data = case_read(filename)
         all_test_data = all_data[0]     # dict
         all_case_index = all_data[1]    # list
         all_step_dict = all_data[2]    # dict
-        log.logging(os.path.basename(filename).split('.')[0])
-        # all_step_index = all_data[3]
+        log.logging(filename)
         case_result = {}
         # for循环根据case-step进行类初始化，每次把所有step的ssh都先连接上，再给函数进行操作；
         # 执行测试部分
@@ -179,7 +198,5 @@ if __name__ == '__main__':
             sleep(10)
             log.logging('CASE ENDING: %s' % case)
             log.logging('THE CASE END TIME: %s' % time.strftime("%Y.%m.%d %H:%M", time.localtime()))
-        # 输出测试结果,试一下写到excel里面
-        for k in case_result.keys():
-            for j in case_result[k].keys():
-                log.logging(f'TEST CASE {k} : STEP {j} RESULT {case_result[k][j][0]}, TEST COMMENTS : {case_result[k][j][1]}')
+        # 输出测试结果
+        write_test_result(**case_result)
