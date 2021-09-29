@@ -1,4 +1,3 @@
-# coding=utf-8
 import time
 from time import sleep
 import pandas as pd
@@ -175,10 +174,11 @@ if __name__ == '__main__':
         datetime = time.strftime("%Y-%m-%d_%H-%M-%S", time.localtime())
         file = os.path.basename(filename).split('.')[0] + datetime
         log = Logging(file + '.log')
-        all_data = case_read(filename)
-        all_test_data = all_data[0]     # dict
-        all_case_index = all_data[1]    # list
-        all_step_dict = all_data[2]    # dict
+        # all_data = case_read(filename)
+        all_test_data,all_case_index,all_step_dict = case_read(filename)
+        # all_test_data = all_data[0]     # dict
+        # all_case_index = all_data[1]    # list
+        # all_step_dict = all_data[2]    # dict
         log.logging(filename)
         case_result = {}
         # for循环根据case-step进行类初始化，每次把所有step的ssh都先连接上，再给函数进行操作；
