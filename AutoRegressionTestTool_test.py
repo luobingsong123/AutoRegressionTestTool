@@ -7,22 +7,22 @@ import os
 
 class PyShell(object):
     def __init__(self, queue, **kwargs):
-        # self.case = kwargs['case']
-        # self.step = kwargs['step']
+        # self.case = kwargs['用例名']
+        # self.step = kwargs['步骤']
         self.msg_log = queue
-        self.comments = kwargs['comments']
-        self.server = kwargs['server']
-        self.user = kwargs['user']
-        self.password = str(kwargs['password'])
-        self.shell_str_mod = str(kwargs['shell_str_mod'])
+        self.comments = kwargs['说明']
+        self.server = kwargs['服务器']
+        self.user = kwargs['用户名']
+        self.password = str(kwargs['密码'])
+        self.shell_str_mod = str(kwargs['发送模式'])
         if self.shell_str_mod == '1':
-            self.shell_str = kwargs['shell_str'].split('|')
+            self.shell_str = kwargs['发送命令'].split('|')
         else:
-            self.shell_str = [(kwargs['shell_str'])]
-        self.wait_str = kwargs['wait_str'].split('|')
-        self.wait_time = kwargs['wait_time']
-        self.timeout = kwargs['timeout']
-        self.fail_str = kwargs['fail_str'].split('|')
+            self.shell_str = [(kwargs['发送命令'])]
+        self.wait_str = kwargs['等待回显'].split('|')
+        self.wait_time = kwargs['刷新间隔']
+        self.timeout = kwargs['超时时间']
+        self.fail_str = kwargs['失败回显'].split('|')
         # transport和channel
         self.transport = ''
         self.channel = ''
@@ -136,58 +136,61 @@ class TestPerform(object):
         self.case_read()
         self.case_result = {}
         self.step_result = {}
+        self.start_time = time.strftime("%Y%m%d %H：%M：%S", time.localtime())
 
     def case_run(self):
-        self.queue_log.put('测试用例&路径：' + self.filename)
-        self.queue_log.put('测试用例表名：' + self.sheet_name)
-        # self.queue_log.put('重复测试次数：' + str(self.retest_time))
-        # for循环根据case-step进行类初始化，每次把所有step的ssh都先连接上，再进行操作；
-        # 后续改进增加连接复用，多step后台识别
-        # 执行测试部分
-        while self.retest_time != 0:
-            for case in self.case_index:
-                # case内操作
-                class_list = []
-                self.start_time = time.strftime("%Y%m%d %H：%M：%S", time.localtime())
-                self.report_xlsx = os.path.basename(self.filename).split('.')[0] + self.start_time
-                self.queue_log.put(
-                    'START TESTING CASE: %s , %s' % (case, self.start_time))
-                for step in self.case_step_dict[case]:
-                    # step的ssh初始化
-                    step_init = PyShell(self.queue_log, **self.test_data_dict[case][step])  # 传递字典进去
-                    class_list.append(step_init)
-                for i in range(len(self.case_step_dict[case])):
-                    # 执行step操作
-                    self.step_result[self.case_step_dict[case][i]] = class_list[i].start_test()
-                    sleep(0.5)
-                    if self.step_result[self.case_step_dict[case][i]][0]:
-                        self.queue_status.put(case + '   ' + self.case_step_dict[case][i] + '   ' + 'pass')
-                    else:
-                        self.queue_status.put(case + '   ' + self.case_step_dict[case][i] + '   ' + 'fail')
-                # STEP执行完成后断开ssh连接
-                for i in range(len(self.case_step_dict[case])):
-                    class_list[i].close()
-                self.end_time = time.strftime("%Y%m%d %H：%M：%S", time.localtime())
-                self.queue_log.put('CASE ENDING: %s , %s' % (case, self.end_time))
-                self.case_result[case] = self.step_result
-                self.step_result = {}
-                sleep(0.1)
-            self.test_result()
-            self.retest_time -= 1
-            self.queue_status.put(' ')
-            sleep(1)
-        self.test_done_flag()
+        try:
+            self.queue_log.put('测试用例&路径：' + self.filename)
+            self.queue_log.put('测试用例表名：' + self.sheet_name)
+            # self.queue_log.put('重复测试次数：' + str(self.retest_time))
+            # for循环根据case-step进行类初始化，每次把所有step的ssh都先连接上，再进行操作；
+            # 后续改进增加连接复用，多step后台识别
+            # 执行测试部分
+            while self.retest_time != 0:
+                self.queue_status.put('START TIME :' + self.start_time)
+                for case in self.case_index:
+                    # case内操作
+                    class_list = []
+                    self.report_xlsx = os.path.basename(self.filename).split('.')[0] + self.start_time
+                    self.queue_log.put(
+                        'START TESTING CASE: %s , %s' % (case, self.start_time))
+                    for step in self.case_step_dict[case]:
+                        # step的ssh初始化
+                        step_init = PyShell(self.queue_log, **self.test_data_dict[case][step])  # 传递字典进去
+                        class_list.append(step_init)
+                    for i in range(len(self.case_step_dict[case])):
+                        # 执行step操作
+                        self.step_result[self.case_step_dict[case][i]] = class_list[i].start_test()
+                        sleep(0.5)
+                        if self.step_result[self.case_step_dict[case][i]][0]:
+                            self.queue_status.put(case + '   ' + self.case_step_dict[case][i] + '   ' + 'pass')
+                        else:
+                            self.queue_status.put(case + '   ' + self.case_step_dict[case][i] + '   ' + 'fail')
+                    # STEP执行完成后断开ssh连接
+                    for i in range(len(self.case_step_dict[case])):
+                        class_list[i].close()
+                    self.end_time = time.strftime("%Y%m%d %H：%M：%S", time.localtime())
+                    self.queue_log.put('CASE ENDING: %s , %s' % (case, self.end_time))
+                    self.case_result[case] = self.step_result
+                    self.step_result = {}
+                    sleep(0.1)
+                self.test_result()
+                self.retest_time -= 1
+                sleep(1)
+            self.test_done_flag()
+        except ValueError as error:
+            print(error)
 
     def case_read(self):
         df = pd.read_excel(self.filename, sheet_name=self.sheet_name)
         for i in df.index.values:  # 获取行号的索引，并对其进行遍历：
             try:
                 # 根据i来获取每一行指定的数据 并利用to_dict转成字典
-                read_case = df.loc[i, ['case', ]].to_list()
-                read_step = df.loc[i, ['step', ]].to_list()
+                read_case = df.loc[i, ['用例名', ]].to_list()
+                read_step = df.loc[i, ['步骤', ]].to_list()
                 content = df.loc[
-                    i, ['comments', 'server', 'user', 'password', 'shell_str', 'shell_str_mod', 'wait_str', 'wait_time',
-                        'timeout', 'fail_str']].to_dict()
+                    i, ['说明', '服务器', '用户名', '密码', '发送命令', '发送模式', '等待回显', '刷新间隔',
+                        '超时时间', '失败回显']].to_dict()
                 # case名称做键，step做值，剩下的东西做step里的子键值
                 try:
                     self.test_data_dict[read_case[0]][read_step[0]] = content

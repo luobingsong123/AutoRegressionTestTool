@@ -20,8 +20,6 @@ class Ui_Dialog(object):
     def __init__(self):
         self.sheet_name = ''
         self.cycle_time = 1
-        self.msg_queue = Queue()
-        self.status_queue = Queue()
 
     def setupUi(self, Dialog):
         # 自动生成参数
@@ -129,6 +127,8 @@ class Ui_Dialog(object):
     # 停止标志：UI star里面 发UI_STOP_FLAG
     # 测试完成标志： 业务里面发 TEST_DENE_FLAG
     def start_test(self):
+        self.msg_queue = Queue()
+        self.status_queue = Queue()
         # 拆分成两个函数，一个单次 一个循环？
         if self.lineEdit.text() == '':
             pass
@@ -181,7 +181,7 @@ class Ui_Dialog(object):
     def stop_test(self):
         if self.lineEdit.text() == '':
             pass
-        else:
+        elif self.start_.is_alive():
             self.status_queue.put('UI_STOP_FLAG')
             self.test.test_done_flag()
             time.sleep(0.5)
@@ -195,10 +195,10 @@ class Ui_Dialog(object):
             self.start_.join(0.1)
             time.sleep(0.5)
             # 清空消息队列
-            while self.status_queue.qsize() != 0:
-                self.status_queue.get()
-            while self.msg_queue.qsize() != 0:
-                self.msg_queue.get()
+            self.msg_queue.close()
+            self.status_queue.close()
+        else:
+            pass
 
     # 获取下拉列表活动状态
     def sheet_value(self, sheet):
