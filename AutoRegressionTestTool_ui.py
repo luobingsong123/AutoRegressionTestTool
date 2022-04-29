@@ -182,20 +182,20 @@ class Ui_Dialog(object):
             self.status_queue.put('UI_STOP_FLAG')
             self.test.test_done_flag()
             time.sleep(0.5)
-            self.pushButton_starttest.setEnabled(True)
-            self.pushButton_chosefile.setEnabled(True)
-            self.radioButton.setEnabled(True)
-            self.lineEdit.setEnabled(True)
-            self.lineEdit_2.setEnabled(True)
-            self.comboBox.setEnabled(True)
-            self.log.close()
-            self.start_.join(0.1)
-            time.sleep(0.5)
-            # 清空消息队列
-            self.msg_queue.close()
-            self.status_queue.close()
         else:
             pass
+        self.pushButton_starttest.setEnabled(True)
+        self.pushButton_chosefile.setEnabled(True)
+        self.radioButton.setEnabled(True)
+        self.lineEdit.setEnabled(True)
+        self.lineEdit_2.setEnabled(True)
+        self.comboBox.setEnabled(True)
+        self.log.close()
+        self.start_.join(0.1)
+        time.sleep(0.5)
+        # 清空消息队列
+        self.msg_queue.close()
+        self.status_queue.close()
 
     # 获取下拉列表活动状态
     def sheet_value(self, sheet):
