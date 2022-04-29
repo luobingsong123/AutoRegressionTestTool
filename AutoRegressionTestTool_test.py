@@ -178,8 +178,8 @@ class TestPerform(object):
                 self.retest_time -= 1
                 sleep(1)
             self.test_done_flag()
-        except ValueError as error:
-            print(error)
+        except ValueError:
+            pass
 
     def case_read(self):
         df = pd.read_excel(self.filename, sheet_name=self.sheet_name)

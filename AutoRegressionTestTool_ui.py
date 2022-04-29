@@ -85,7 +85,7 @@ class Ui_Dialog(object):
 
     def retranslateUi(self, Dialog):
         _translate = QtCore.QCoreApplication.translate
-        Dialog.setWindowTitle(_translate("Dialog", "自动测试工具v1.0.0"))
+        Dialog.setWindowTitle(_translate("Dialog", "自动测试工具v2.0.1"))
         self.label.setText(_translate("Dialog", "运行记录"))
         self.label_2.setText(_translate("Dialog", "已执行内容"))
         self.label_3.setText(_translate("Dialog", "选择测试用例"))
@@ -123,9 +123,6 @@ class Ui_Dialog(object):
         self.lineEdit_2.setEnabled(True)
         self.comboBox.setEnabled(True)
 
-    # 开始标志：UI star里面 发UI_START_FLAG
-    # 停止标志：UI star里面 发UI_STOP_FLAG
-    # 测试完成标志： 业务里面发 TEST_DENE_FLAG
     def start_test(self):
         self.msg_queue = Queue()
         self.status_queue = Queue()
@@ -214,42 +211,43 @@ class Ui_Dialog(object):
 
     def running_log(self):
         while True:
-            # 减少资源占用
-            time.sleep(0.1)
-            queue_log = self.msg_queue.get()
-            self.textBrowser.append(queue_log)
-            self.textBrowser.moveCursor(self.textBrowser.textCursor().End)
             try:
+                # 减少资源占用
+                time.sleep(0.1)
+                queue_log = self.msg_queue.get()
+                self.textBrowser.append(queue_log)
+                self.textBrowser.moveCursor(self.textBrowser.textCursor().End)
                 self.log.write(queue_log + '\n')
-            except ValueError:
+            except ValueError:  # 写日志异常 用来停打印
+                break
+            except EOFError:   # 应该是管道异常
                 break
 
     def test_status(self):
         while True:
-            time.sleep(0.1)
-            queue_status = self.status_queue.get()
-            # 测试状态标志
-            if queue_status == 'UI_START_FLAG':
-                print('UI_START_FLAG')
-            elif queue_status == 'UI_STOP_FLAG':
-                print('UI_STOP_FLAG')
-            # 后面环境因素或者奇怪的跑脚本失败要做新的处理，目前暂时跟测试完成一样处理
-            elif queue_status == 'TEST_FAIL_FLAG':
-                print('TEST_FAIL_FLAG')
-                self.stop_test()
-            elif queue_status == 'TEST_FINISH_FLAG':
-                print('TEST_FINISH_FLAG')
-                self.stop_test()
-            else:
-                index = self.listWidget.currentRow() + 1
-                self.listWidget.addItem(queue_status)
-                if 'pass' in queue_status:
-                    self.listWidget.item(index).setBackground(QColor('#7FFF11'))
-                elif 'fail' in queue_status:
-                    self.listWidget.item(index).setBackground(QColor('red'))
-                self.listWidget.setCurrentRow(self.listWidget.currentRow()+1)
-                # 用来停打印
-                try:
+            try:
+                time.sleep(0.1)
+                queue_status = self.status_queue.get()
+                # 测试状态标志
+                if queue_status == 'UI_START_FLAG':
+                    print('UI_START_FLAG')
+                elif queue_status == 'UI_STOP_FLAG':
+                    print('UI_STOP_FLAG')
+                # 后面环境因素或者奇怪的跑脚本失败要做新的处理，目前暂时跟测试完成一样处理
+                elif queue_status == 'TEST_FAIL_FLAG':
+                    print('TEST_FAIL_FLAG')
+                    self.stop_test()
+                elif queue_status == 'TEST_FINISH_FLAG':
+                    print('TEST_FINISH_FLAG')
+                    self.stop_test()
+                else:
+                    index = self.listWidget.currentRow() + 1
+                    self.listWidget.addItem(queue_status)
+                    if 'pass' in queue_status:
+                        self.listWidget.item(index).setBackground(QColor('#7FFF11'))
+                    elif 'fail' in queue_status:
+                        self.listWidget.item(index).setBackground(QColor('red'))
+                    self.listWidget.setCurrentRow(self.listWidget.currentRow()+1)
                     self.log.write('')
-                except ValueError:
-                    break
+            except ValueError:  # 用来停打印
+                break
