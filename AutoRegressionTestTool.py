@@ -9,5 +9,4 @@ if __name__ == '__main__':
     window = AutoRegressionTestTool_ui.Ui_Dialog()
     window.setupUi(MainWindow)
     MainWindow.show()
-    if sys.exit(app.exec_()):
-        exit()
+    sys.exit(app.exec_())
