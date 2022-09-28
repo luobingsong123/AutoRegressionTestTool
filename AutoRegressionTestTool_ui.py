@@ -90,8 +90,8 @@ class Ui_Dialog(object):
         self.label_2.setText(_translate("Dialog", "已执行内容"))
         self.label_3.setText(_translate("Dialog", "选择测试用例"))
         self.pushButton_chosefile.setText(_translate("Dialog", "选择测试用例"))
-        self.pushButton_starttest.setText(_translate("Dialog", "开始测试"))
-        self.pushButton_stoptest.setText(_translate("Dialog", "停止测试"))
+        self.pushButton_starttest.setText(_translate("Dialog", "开始执行"))
+        self.pushButton_stoptest.setText(_translate("Dialog", "停止执行"))
         self.radioButton.setText(_translate("Dialog", "重复测试"))
         self.label_4.setText(_translate("Dialog", "重复次数"))
 
@@ -104,6 +104,8 @@ class Ui_Dialog(object):
         self.lineEdit.setEnabled(False)
         self.lineEdit_2.setEnabled(False)
         self.comboBox.setEnabled(False)
+        self.listWidget.setEnabled(False)
+        self.listWidget.clear()
         try:
             file = QtWidgets.QFileDialog.getOpenFileName(caption=title)[0]
             self.lineEdit.setText(file)
@@ -122,6 +124,7 @@ class Ui_Dialog(object):
         self.lineEdit.setEnabled(True)
         self.lineEdit_2.setEnabled(True)
         self.comboBox.setEnabled(True)
+        self.listWidget.setEnabled(True)
 
     def start_test(self):
         self.msg_queue = Queue()
@@ -150,6 +153,7 @@ class Ui_Dialog(object):
             self.lineEdit.setEnabled(False)
             self.lineEdit_2.setEnabled(False)
             self.comboBox.setEnabled(False)
+            self.listWidget.setEnabled(False)
             start_time = time.strftime("%Y-%m-%d %H-%M-%S", time.localtime())
             file = os.path.basename(self.lineEdit.text()).split('.')[0] + start_time
             self.log = open('./log/' + file + '.log', '+a')
@@ -190,6 +194,7 @@ class Ui_Dialog(object):
         self.lineEdit.setEnabled(True)
         self.lineEdit_2.setEnabled(True)
         self.comboBox.setEnabled(True)
+        self.listWidget.setEnabled(True)
         self.log.close()
         self.start_.join(0.1)
         time.sleep(0.5)
@@ -218,10 +223,16 @@ class Ui_Dialog(object):
                 self.textBrowser.append(queue_log)
                 self.textBrowser.moveCursor(self.textBrowser.textCursor().End)
                 self.log.write(queue_log + '\n')
-            except ValueError:  # 写日志异常 用来停打印
+            except ValueError as error:
+                print(error)
                 break
-            except EOFError:   # 应该是管道异常
+            except EOFError as error:
+                print(error)
                 break
+            except TypeError as error:
+                print(error)
+                print('maybe running bat script?')
+                continue
 
     def test_status(self):
         while True:
@@ -249,5 +260,6 @@ class Ui_Dialog(object):
                         self.listWidget.item(index).setBackground(QColor('red'))
                     self.listWidget.setCurrentRow(self.listWidget.currentRow()+1)
                     self.log.write('')
-            except ValueError:  # 用来停打印
+            except ValueError as error:
+                print(error)  # 用来停打印
                 break

@@ -3,6 +3,7 @@ from time import sleep
 import pandas as pd
 import paramiko
 import os
+from subprocess import call
 
 
 class PyShell(object):
@@ -32,6 +33,7 @@ class PyShell(object):
         self.connect()
 
     # 服务器中途断开报错,后面要处理一下
+    # 服务器后台断开好像没有问题
     #     Exception in thread Thread-3:
     # Traceback (most recent call last):
     #   File "threading.py", line 950, in _bootstrap_inner
@@ -47,6 +49,9 @@ class PyShell(object):
     def connect(self):
         while True:
             # 连接过程中可能会抛出异常，比如网络不通、链接超时
+            if self.server == 'cmd':
+                self.msg_log.put('执行本地cmd命令')
+                return
             try:
                 self.transport = paramiko.Transport(sock=(self.server, 22))
                 self.transport.connect(username=self.user, password=self.password)
@@ -83,41 +88,60 @@ class PyShell(object):
             result += ret
             return result
 
-    # 启动命令下发&回显匹配
+    # 启动命令下发&回显匹配 // 执行windows本地bat脚本
     def start_test(self):
         # 已经连上服务器标志
-        if self.connet_type:
-            times = 0
-            result = ''
-            # 发送命令
-            for i in self.shell_str:
-                result = self.send(i)
-                self.msg_log.put(result)
-            # 判断回显
-            while times < self.timeout:
-                for wait_str in self.wait_str:
-                    if wait_str in result:
+        try:
+            if self.connet_type:
+                times = 0
+                result = ''
+                # 发送命令
+                if self.server == 'cmd':
+                    # 执行本地标志
+                    # 执行之后返回ture
+                    # 默认pass
+                    # 文件不存在则返回fail
+                    # 执行脚本后等待 wait_time
+                    # bat脚本名和路径都放到命令里
+                    try:
+                        call(self.shell_str)
+                        self.msg_log.put(self.shell_str)
                         return True, self.comments + ' pass'
-                for fail_str in self.fail_str:
-                    if fail_str in result:
+                    except FileNotFoundError as error:
+                        self.msg_log.put(error)
                         return False, self.comments + ' fail'
-                wait_time = 0
-                while wait_time < self.wait_time:
-                    times += 1
-                    wait_time += 1
-                    sleep(0.95)
-                result = self.send('\n')
-                self.msg_log.put(result)
-            return False, self.comments + ' timeout'
-        else:
-            return False, self.comments + ' server is offline'
+                else:
+                    for i in self.shell_str:
+                        result = self.send(i)
+                        self.msg_log.put(result)
+                    # 判断回显
+                    while times < self.timeout:
+                        for wait_str in self.wait_str:
+                            if wait_str in result:
+                                return True, self.comments + ' pass'
+                        for fail_str in self.fail_str:
+                            if fail_str in result:
+                                return False, self.comments + ' fail'
+                        wait_time = 0
+                        while wait_time < self.wait_time:
+                            times += 1
+                            wait_time += 1
+                            sleep(0.95)
+                        result = self.send('\n')
+                        self.msg_log.put(result)
+                    return False, self.comments + ' timeout'
+            else:
+                return False, self.comments + ' server is offline'
+        except OSError:
+            self.msg_log.put('OSError: Socket is closed')
 
     # 断开连接
     def close(self):
         try:
             self.channel.close()
             self.transport.close()
-        except AttributeError:
+        except AttributeError as error:
+            print(error)
             pass
 
 
@@ -154,18 +178,18 @@ class TestPerform(object):
                     self.report_xlsx = os.path.basename(self.filename).split('.')[0] + self.start_time
                     self.queue_log.put(
                         'START TESTING CASE: %s , %s' % (case, self.start_time))
+                    step_no = 0
                     for step in self.case_step_dict[case]:
                         # step的ssh初始化
-                        step_init = PyShell(self.queue_log, **self.test_data_dict[case][step])  # 传递字典进去
+                        step_init = PyShell(self.queue_log, **self.test_data_dict[case][step])  # 如果是连服务器，则传递字典进去
                         class_list.append(step_init)
-                    for i in range(len(self.case_step_dict[case])):
-                        # 执行step操作
-                        self.step_result[self.case_step_dict[case][i]] = class_list[i].start_test()
+                        self.step_result[self.case_step_dict[case][step_no]] = step_init.start_test()
                         sleep(0.5)
-                        if self.step_result[self.case_step_dict[case][i]][0]:
-                            self.queue_status.put(case + '   ' + self.case_step_dict[case][i] + '   ' + 'pass')
+                        if self.step_result[self.case_step_dict[case][step_no]][0]:
+                            self.queue_status.put(case + '   ' + self.case_step_dict[case][step_no] + '   ' + 'pass')
                         else:
-                            self.queue_status.put(case + '   ' + self.case_step_dict[case][i] + '   ' + 'fail')
+                            self.queue_status.put(case + '   ' + self.case_step_dict[case][step_no] + '   ' + 'fail')
+                        step_no += 1
                     # STEP执行完成后断开ssh连接
                     for i in range(len(self.case_step_dict[case])):
                         class_list[i].close()
@@ -178,12 +202,13 @@ class TestPerform(object):
                 self.retest_time -= 1
                 sleep(1)
             self.test_done_flag()
-        except ValueError:
+        except ValueError as error:
+            print(error)
             pass
 
     def case_read(self):
         df = pd.read_excel(self.filename, sheet_name=self.sheet_name)
-        for i in df.index.values:  # 获取行号的索引，并对其进行遍历：
+        for i in df.index.values:  # 获取行号的索引，并对其进行遍历：   # 用例步骤有重复内容的话会有异常，但目前没有出现报错
             try:
                 # 根据i来获取每一行指定的数据 并利用to_dict转成字典
                 read_case = df.loc[i, ['用例名', ]].to_list()
@@ -273,42 +298,3 @@ class TestPerform(object):
     def test_done_flag(self):
         # 用例执行完成标志
         self.queue_status.put('TEST_FINISH_FLAG')
-
-
-# 把这堆的位置搞好就可以了
-# if __name__ == '__main__':
-#     # app = QApplication(sys.argv)
-#     # MainWindow = QMainWindow()
-#     # window = AutoRegressionTestTool_ui.Ui_Dialog()
-#     # window.setupUi(MainWindow)
-#     # MainWindow.show()
-#     # sys.exit(app.exec_())
-#     # k = Entrance(r'C:\Users\DELL\Desktop\测试交付\实验室CPU状态.xlsx')
-#     # k.entrance()
-#
-#     # 这部分可以放到主函数声明
-#     queue_log = Queue()  # 创建log队列
-#     queue_status = Queue()  # 测试状态队列
-#     log_queue = ResultPush(queue_log)   # 实例化LOG上传消息队列，用于传入函数调用
-#     status_queue = ResultPush(queue_status)   # 实例化测试状态队列，用于传入函数调用
-#
-#     # 这部分在GUI点击里面增加
-#     file_name = r'C:\Users\DELL\Desktop\测试交付\demo测试用用例￥.xlsx'
-#     datetime = time.strftime("%Y-%m-%d %H-%M-%S", time.localtime())
-#     file = os.path.basename(file_name).split('.')[0] + datetime
-#
-#     # 这部分也可以在GUI点击里面增加
-#     # 实例化打印和写log类
-#     log = Logging(file + '.log',queue_log,queue_status)
-#     # 写log方法做一个进程
-#     log_thread = Thread(target=log.log_print, args=())
-#     log_thread.start()
-#     # 写status做一个进程
-#     status_thread = Thread(target=log.status, args=())
-#     status_thread.start()
-#     # 实例化测试用例
-#     auto_test = TestPerform(file_name,log_queue,status_queue)
-#     # 执行测试用例
-#     auto_test.case_run()
-#     # 测试完成后，关闭log
-#     log.file_log.close()
