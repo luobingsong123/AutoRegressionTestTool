@@ -84,7 +84,7 @@ class PyShell(object):
         # 回显很长的命令可能执行较久，通过循环分批次取回回显,执行成功返回true,失败返回false
         while True:
             sleep(0.5)
-            ret = self.channel.recv(-1).decode('utf-8')
+            ret = self.channel.recv(-1).decode('gbk')
             result += ret
             return result
 
