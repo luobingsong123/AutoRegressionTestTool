@@ -231,7 +231,7 @@ class Ui_Dialog(object):
                 break
             except TypeError as error:
                 print(error)
-                print('maybe running bat script?')
+                print('probably cmd str error!')
                 continue
 
     def test_status(self):

@@ -32,19 +32,6 @@ class PyShell(object):
         self.connet_type = True
         self.connect()
 
-    # 服务器中途断开报错,后面要处理一下
-    # 服务器后台断开好像没有问题
-    #     Exception in thread Thread-3:
-    # Traceback (most recent call last):
-    #   File "threading.py", line 950, in _bootstrap_inner
-    #   File "threading.py", line 888, in run
-    #   File "AutoRegressionTestTool_test.py", line 152, in case_run
-    #   File "AutoRegressionTestTool_test.py", line 88, in start_test
-    #   File "AutoRegressionTestTool_test.py", line 68, in send
-    #   File "paramiko\channel.py", line 801, in send
-    #   File "paramiko\channel.py", line 1198, in _send
-    # OSError: Socket is closed
-
     # 连接远程主机
     def connect(self):
         while True:
@@ -88,9 +75,13 @@ class PyShell(object):
             try:
                 ret = recv_cache.decode('utf-8')
             except UnicodeDecodeError:
-                ret = recv_cache.decode('gbk')
-                print(ret)
-                print('UnicodeDecodeError')
+                try:
+                    ret = recv_cache.decode('gbk')
+                    # print(ret)
+                    # print('UnicodeDecodeError')
+                except Exception:
+                    # 力大飞砖
+                    ret = str(recv_cache)
             result += ret
             return result
 
