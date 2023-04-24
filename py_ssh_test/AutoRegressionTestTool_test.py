@@ -70,18 +70,21 @@ class PyShell(object):
         self.channel.send(cmd)
         # 回显很长的命令可能执行较久，通过循环分批次取回回显,执行成功返回true,失败返回false
         while True:
-            sleep(0.5)
+            sleep(0.01)
             recv_cache = self.channel.recv(-1)
             try:
                 ret = recv_cache.decode('utf-8')
             except UnicodeDecodeError:
-                try:
-                    ret = recv_cache.decode('gbk')
-                    # print(ret)
-                    # print('UnicodeDecodeError')
-                except Exception:
+                # try:
+                #     print('UnicodeDecodeError')
+                #     ret = recv_cache.decode('gbk')
+                #     # print(ret)
+                #     # print('UnicodeDecodeError')
+                # except Exception:
                     # 力大飞砖
+                    print('utf-8 DecodeError and gbk DecodeError')
                     ret = str(recv_cache)
+
             result += ret
             return result
 
@@ -105,6 +108,7 @@ class PyShell(object):
                         self.msg_log.put(self.shell_str)
                         return True, self.comments + ' pass'
                     except FileNotFoundError as error:
+                        print(error)
                         self.msg_log.put(error)
                         return False, self.comments + ' fail'
                 else:
@@ -129,7 +133,8 @@ class PyShell(object):
                     return False, self.comments + ' timeout'
             else:
                 return False, self.comments + ' server is offline'
-        except OSError:
+        except OSError as error:
+            print(error)
             self.msg_log.put('OSError: Socket is closed')
 
     # 断开连接
@@ -197,13 +202,16 @@ class TestPerform(object):
                     sleep(0.1)
                 self.test_result()
                 self.retest_time -= 1
-                sleep(1)
+                sleep(0.5)
             self.test_done_flag()
         except ValueError as error:
             print(error)
             pass
 
     def case_read(self):
+        """
+        读取用例内容  用例名  用例步骤  用例内容
+        """
         df = pd.read_excel(self.filename, sheet_name=self.sheet_name)
         for i in df.index.values:  # 获取行号的索引，并对其进行遍历：   # 用例步骤有重复内容的话会有异常，但目前没有出现报错
             try:
@@ -231,9 +239,16 @@ class TestPerform(object):
                 self.queue_log.put(KeyError_msg)
                 self.queue_status.put('TEST_FAIL_FLAG')
                 break
+        # 创建一个带表头的全局xlsx
+        # self.df = pd.DataFrame({'test_case', 'test_step', 'test_result','test_comments'})
+        # 还要一个计数，行的计数,从1开始，不算表头
+        # self.df_row = 1
 
     # 输出测试结果
     def test_result(self):
+        """
+        :return: 生成测试报告
+        """
         test_case = []
         test_case_result = {}
         test_step = []
@@ -258,6 +273,11 @@ class TestPerform(object):
                 test_fail += 1
         df = pd.DataFrame({'test_case': test_case, 'test_step': test_step, 'test_result': test_result,
                            'test_comments': test_comments})
+        # print(test_case)
+        # print(test_step)
+        # print(test_result)
+        # print(test_comments)
+        # print(df)
         # 报告格式&着色相关
         # df_style = df.style.applymap(lambda x: 'background-color:green' if test_result == 'pass' else 'background-color:red', subset=['test_result'])
         # writer = pd.ExcelWriter('./report/' + self.report_xlsx + '.xlsx',)
@@ -265,7 +285,7 @@ class TestPerform(object):
         # writer.save()
         df.to_excel('./report/' + self.report_xlsx + '.xlsx',index=False)
         # 输出html格式报告
-        f = open('./report/' + self.report_xlsx + '.html', 'w')
+        f = open('./report/' + self.report_xlsx + '.html', 'a')
         message = """
         <html>
         <head></head>

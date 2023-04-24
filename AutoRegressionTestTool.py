@@ -1,7 +1,6 @@
 import sys
 from PyQt5.QtWidgets import *
-import AutoRegressionTestTool_ui
-
+from ui import AutoRegressionTestTool_ui
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
