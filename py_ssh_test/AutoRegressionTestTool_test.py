@@ -149,7 +149,7 @@ class PyShell(object):
 
 # 测试执行主要逻辑代码
 class TestPerform(object):
-    def __init__(self, filename, sheet_name, retest_time, queue1, queue2):
+    def __init__(self, filename, sheet_name, retest_time, queue1, queue2, delay_time):
         self.filename = filename
         self.sheet_name = sheet_name
         self.retest_time = retest_time
@@ -162,6 +162,7 @@ class TestPerform(object):
         self.case_read()
         self.case_result = {}
         self.step_result = {}
+        self.delay_time = delay_time
         self.start_time = time.strftime("%Y%m%d %H：%M：%S", time.localtime())
 
     def case_run(self):
@@ -172,6 +173,11 @@ class TestPerform(object):
             # for循环根据case-step进行类初始化，每次把所有step的ssh都先连接上，再进行操作；
             # 后续改进增加连接复用，多step后台识别
             # 执行测试部分
+            if self.delay_time != 0:
+                self.queue_log.put(
+                    '延时开始测试,现在不开始测试，' + str(self.delay_time) + '分钟后开始测试')
+                self.queue_log.put(time.strftime("当前时间：%Y-%m-%d %H:%M:%S" , time.localtime()))
+                sleep(self.delay_time * 60)
             while self.retest_time != 0:
                 self.queue_status.put('START TIME :' + self.start_time)
                 for case in self.case_index:

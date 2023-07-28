@@ -61,7 +61,7 @@ class Ui_Dialog(object):
         self.comboBox.setGeometry(QtCore.QRect(690, 30, 181, 31))
         self.comboBox.setObjectName("comboBox")
         self.radioButton = QtWidgets.QRadioButton(Dialog)
-        self.radioButton.setGeometry(QtCore.QRect(710, 80, 89, 16))
+        self.radioButton.setGeometry(QtCore.QRect(750, 80, 89, 16))
         self.radioButton.setLayoutDirection(QtCore.Qt.RightToLeft)
         self.radioButton.setObjectName("radioButton")
         self.lineEdit_2 = QtWidgets.QLineEdit(Dialog)
@@ -69,7 +69,17 @@ class Ui_Dialog(object):
         self.lineEdit_2.setObjectName("lineEdit_2")
         self.label_4 = QtWidgets.QLabel(Dialog)
         self.label_4.setGeometry(QtCore.QRect(850, 80, 81, 16))
-        self.label_4.setObjectName("label_4")
+        self.label_4.setObjectName("label_5")
+        self.label_5 = QtWidgets.QLabel(Dialog)
+        self.label_5.setGeometry(QtCore.QRect(480, 80, 81, 16))
+        self.label_5.setObjectName("label_5")
+        self.lineEdit_5 = QtWidgets.QLineEdit(Dialog)
+        self.lineEdit_5.setGeometry(QtCore.QRect(540, 70, 131, 31))
+        self.lineEdit_5.setObjectName("lineEdit_2")
+        self.label_6 = QtWidgets.QLabel(Dialog)
+        self.label_6.setGeometry(QtCore.QRect(680, 80, 81, 16))
+        self.label_6.setObjectName("label_6")
+
         self.comboBox.setEnabled(False)
 
         self.retranslateUi(Dialog)
@@ -79,6 +89,7 @@ class Ui_Dialog(object):
         self.pushButton_chosefile.clicked.connect(self.chose_file)
         self.pushButton_starttest.clicked.connect(self.start_test)
         self.pushButton_stoptest.clicked.connect(self.stop_test)
+        # 增加一个延时开始测试的功能，输入框输入数字，单位分，勾选后生效
 
         # 获取下拉列表活动状态
         self.comboBox.currentIndexChanged[str].connect(self.sheet_value)
@@ -94,17 +105,13 @@ class Ui_Dialog(object):
         self.pushButton_stoptest.setText(_translate("Dialog", "停止执行"))
         self.radioButton.setText(_translate("Dialog", "重复测试"))
         self.label_4.setText(_translate("Dialog", "重复次数"))
+        self.label_5.setText(_translate("Dialog", "延时时间"))
+        self.label_6.setText(_translate("Dialog", "分钟"))
 
     def chose_file(self):
         title = "选择测试用例表格"  # 对话框标题
         time.sleep(0.1)
-        self.pushButton_starttest.setEnabled(False)
-        self.pushButton_chosefile.setEnabled(False)
-        self.radioButton.setEnabled(False)
-        self.lineEdit.setEnabled(False)
-        self.lineEdit_2.setEnabled(False)
-        self.comboBox.setEnabled(False)
-        self.listWidget.setEnabled(False)
+        self.set_item_flase()
         self.listWidget.clear()
 
         try:
@@ -119,17 +126,13 @@ class Ui_Dialog(object):
             print(error)
             pass
         time.sleep(0.1)
-        self.pushButton_starttest.setEnabled(True)
-        self.pushButton_chosefile.setEnabled(True)
-        self.radioButton.setEnabled(True)
-        self.lineEdit.setEnabled(True)
-        self.lineEdit_2.setEnabled(True)
-        self.comboBox.setEnabled(True)
-        self.listWidget.setEnabled(True)
+        self.set_item_true()
 
     def start_test(self):
+        # 生成消息队列
         self.msg_queue = Queue()
         self.status_queue = Queue()
+        self.delay_time = 0
         # 拆分成两个函数，一个单次 一个循环？
         if self.lineEdit.text() == '':
             pass
@@ -148,25 +151,26 @@ class Ui_Dialog(object):
                 print(e)
 
             time.sleep(0.1)
-            self.pushButton_starttest.setEnabled(False)
-            self.pushButton_chosefile.setEnabled(False)
-            self.radioButton.setEnabled(False)
-            self.lineEdit.setEnabled(False)
-            self.lineEdit_2.setEnabled(False)
-            self.comboBox.setEnabled(False)
-            self.listWidget.setEnabled(False)
+            self.set_item_flase()
             start_time = time.strftime("%Y-%m-%d %H-%M-%S", time.localtime())
             file = os.path.basename(self.lineEdit.text()).split('.')[0] + start_time
             self.log = open('./log/' + file + '.log', '+a')
 
+            self.running_log_thread = Thread(target = self.running_log , args = ())
+            self.test_status_thread = Thread(target = self.test_status , args = ())
+
             time.sleep(0.1)
             # 启动命令运行log刷新输出界面进程
-            self.running_log_thread()
+            self.running_log_thread.start()
             # 启动测试状态刷新输出界面进程
-            self.test_status_thread()
+            self.test_status_thread.start()
             self.textBrowser.clear()
             self.listWidget.clear()
+
             self.status_queue.put('UI_START_FLAG')
+
+            if self.lineEdit_5.text() != '':
+                self.delay_time = int(self.lineEdit_5.text())
 
             # 重复测试部分功能
             if self.radioButton.isChecked():
@@ -176,7 +180,7 @@ class Ui_Dialog(object):
                     self.cycle_time = -1
             else:
                 self.cycle_time = 1
-            self.test = AutoRegressionTestTool_test.TestPerform(self.lineEdit.text(), self.sheet_name, self.cycle_time, self.msg_queue, self.status_queue)
+            self.test = AutoRegressionTestTool_test.TestPerform(self.lineEdit.text(), self.sheet_name, self.cycle_time, self.msg_queue, self.status_queue, self.delay_time)
             self.start_ = Thread(target=self.test.case_run, args=())
             self.start_.start()
 
@@ -189,13 +193,7 @@ class Ui_Dialog(object):
             time.sleep(0.5)
         else:
             pass
-        self.pushButton_starttest.setEnabled(True)
-        self.pushButton_chosefile.setEnabled(True)
-        self.radioButton.setEnabled(True)
-        self.lineEdit.setEnabled(True)
-        self.lineEdit_2.setEnabled(True)
-        self.comboBox.setEnabled(True)
-        self.listWidget.setEnabled(True)
+        self.set_item_true()
         self.log.close()
         self.start_.join(0.1)
         time.sleep(0.5)
@@ -206,14 +204,6 @@ class Ui_Dialog(object):
     # 获取下拉列表活动状态
     def sheet_value(self, sheet):
         self.sheet_name = sheet
-
-    def running_log_thread(self):
-        running_log_thread = Thread(target=self.running_log,args=())
-        running_log_thread.start()
-
-    def test_status_thread(self):
-        test_status_thread = Thread(target=self.test_status,args=())
-        test_status_thread.start()
 
     def running_log(self):
         while True:
@@ -226,6 +216,9 @@ class Ui_Dialog(object):
                 self.textBrowser.append(queue_log)
                 self.textBrowser.moveCursor(self.textBrowser.textCursor().End)
                 self.log.write(queue_log + '\n')
+                # 长度大于100行清空
+                # if self.textBrowser.document().lineCount() > 100:
+                #     print(self.textBrowser.document().lineCount())
             except ValueError as error:
                 print(error)
                 break
@@ -263,6 +256,28 @@ class Ui_Dialog(object):
                         self.listWidget.item(index).setBackground(QColor('red'))
                     self.listWidget.setCurrentRow(self.listWidget.currentRow()+1)
                     self.log.write('')
+                print('status_queue')
             except ValueError as error:
+                print('test_status error:')
                 print(error)  # 用来停打印
                 break
+
+    def set_item_flase(self):
+        self.pushButton_starttest.setEnabled(False)
+        self.pushButton_chosefile.setEnabled(False)
+        self.radioButton.setEnabled(False)
+        self.lineEdit.setEnabled(False)
+        self.lineEdit_2.setEnabled(False)
+        self.comboBox.setEnabled(False)
+        self.listWidget.setEnabled(False)
+        self.lineEdit_5.setEnabled(False)
+
+    def set_item_true(self):
+        self.pushButton_starttest.setEnabled(True)
+        self.pushButton_chosefile.setEnabled(True)
+        self.radioButton.setEnabled(True)
+        self.lineEdit.setEnabled(True)
+        self.lineEdit_2.setEnabled(True)
+        self.comboBox.setEnabled(True)
+        self.listWidget.setEnabled(True)
+        self.lineEdit_5.setEnabled(True)
