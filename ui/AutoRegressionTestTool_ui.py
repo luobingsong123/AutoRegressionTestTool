@@ -81,6 +81,8 @@ class Ui_Dialog(object):
         self.label_6.setObjectName("label_6")
 
         self.comboBox.setEnabled(False)
+        self.pushButton_stoptest.setEnabled(False)
+        self.pushButton_starttest.setEnabled(False)
 
         self.retranslateUi(Dialog)
         QtCore.QMetaObject.connectSlotsByName(Dialog)
@@ -105,12 +107,12 @@ class Ui_Dialog(object):
         self.pushButton_stoptest.setText(_translate("Dialog", "停止执行"))
         self.radioButton.setText(_translate("Dialog", "重复测试"))
         self.label_4.setText(_translate("Dialog", "重复次数"))
-        self.label_5.setText(_translate("Dialog", "延时时间"))
+        self.label_5.setText(_translate("Dialog", "延时开始"))
         self.label_6.setText(_translate("Dialog", "分钟"))
 
     def chose_file(self):
-        title = "选择测试用例表格"  # 对话框标题
-        time.sleep(0.1)
+        title = "选择用例表格"  # 对话框标题
+        time.sleep(0.01)
         self.set_item_flase()
         self.listWidget.clear()
 
@@ -125,13 +127,14 @@ class Ui_Dialog(object):
         except Exception as error:
             print(error)
             pass
-        time.sleep(0.1)
         self.set_item_true()
 
     def start_test(self):
         # 生成消息队列
         self.msg_queue = Queue()
         self.status_queue = Queue()
+        self.pushButton_starttest.setEnabled(False)
+        self.pushButton_stoptest.setEnabled(True)
         self.delay_time = 0
         # 拆分成两个函数，一个单次 一个循环？
         if self.lineEdit.text() == '':
@@ -150,16 +153,16 @@ class Ui_Dialog(object):
             except Exception as e:
                 print(e)
 
-            time.sleep(0.1)
+            time.sleep(0.01)
             self.set_item_flase()
             start_time = time.strftime("%Y-%m-%d %H-%M-%S", time.localtime())
             file = os.path.basename(self.lineEdit.text()).split('.')[0] + start_time
-            self.log = open('./log/' + file + '.log', '+a')
+            self.log = open('./log/' + file + '.log', '+a', encoding='utf-8')
 
             self.running_log_thread = Thread(target = self.running_log , args = ())
             self.test_status_thread = Thread(target = self.test_status , args = ())
 
-            time.sleep(0.1)
+            time.sleep(0.01)
             # 启动命令运行log刷新输出界面进程
             self.running_log_thread.start()
             # 启动测试状态刷新输出界面进程
@@ -185,18 +188,24 @@ class Ui_Dialog(object):
             self.start_.start()
 
     def stop_test(self):
+        self.pushButton_stoptest.setEnabled(False)
         if self.lineEdit.text() == '':
             pass
         elif self.start_.is_alive():
-            self.status_queue.put('UI_STOP_FLAG')
-            self.test.test_done_flag()
-            time.sleep(0.5)
+            print('self.start_.is_alive() is True')
+            if self.running_log_thread.is_alive():
+                self.status_queue.put('UI_STOP_FLAG')
+                self.test.test_done_flag()
+                time.sleep(0.01)
         else:
             pass
         self.set_item_true()
-        self.log.close()
+        try:
+            self.log.close()
+        except ValueError as e:
+            print(e)
         self.start_.join(0.1)
-        time.sleep(0.5)
+        time.sleep(0.01)
         # 清空消息队列
         self.msg_queue.close()
         self.status_queue.close()
@@ -209,7 +218,7 @@ class Ui_Dialog(object):
         while True:
             try:
                 # 减少资源占用
-                time.sleep(0.1)
+                time.sleep(0.05)
                 queue_log = self.msg_queue.get()
                 if queue_log in ['\n','\r\n','\r']:     # 过滤空行
                     continue
@@ -220,6 +229,7 @@ class Ui_Dialog(object):
                 # if self.textBrowser.document().lineCount() > 100:
                 #     print(self.textBrowser.document().lineCount())
             except ValueError as error:
+                print('running_log error:')
                 print(error)
                 break
             except EOFError as error:
@@ -233,7 +243,7 @@ class Ui_Dialog(object):
     def test_status(self):
         while True:
             try:
-                time.sleep(0.5)
+                time.sleep(0.05)
                 queue_status = self.status_queue.get()
                 # 测试状态标志
                 if queue_status == 'UI_START_FLAG':
@@ -256,7 +266,7 @@ class Ui_Dialog(object):
                         self.listWidget.item(index).setBackground(QColor('red'))
                     self.listWidget.setCurrentRow(self.listWidget.currentRow()+1)
                     self.log.write('')
-                print('status_queue')
+                # print('status_queue')
             except ValueError as error:
                 print('test_status error:')
                 print(error)  # 用来停打印

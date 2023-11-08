@@ -163,7 +163,7 @@ class TestPerform(object):
         self.case_result = {}
         self.step_result = {}
         self.delay_time = delay_time
-        self.start_time = time.strftime("%Y%m%d %H：%M：%S", time.localtime())
+
 
     def case_run(self):
         try:
@@ -179,6 +179,7 @@ class TestPerform(object):
                 self.queue_log.put(time.strftime("当前时间：%Y-%m-%d %H:%M:%S" , time.localtime()))
                 sleep(self.delay_time * 60)
             while self.retest_time != 0:
+                self.start_time = time.strftime("%Y%m%d %H：%M：%S" , time.localtime())
                 self.queue_status.put('START TIME :' + self.start_time)
                 for case in self.case_index:
                     # case内操作
@@ -192,7 +193,7 @@ class TestPerform(object):
                         step_init = PyShell(self.queue_log, **self.test_data_dict[case][step])  # 如果是连服务器，则传递字典进去
                         class_list.append(step_init)
                         self.step_result[self.case_step_dict[case][step_no]] = step_init.start_test()
-                        sleep(0.5)
+                        sleep(0.2)
                         if self.step_result[self.case_step_dict[case][step_no]][0]:
                             self.queue_status.put(case + '   ' + self.case_step_dict[case][step_no] + '   ' + 'pass')
                         else:
@@ -208,7 +209,7 @@ class TestPerform(object):
                     sleep(0.1)
                 self.test_result()
                 self.retest_time -= 1
-                sleep(0.5)
+                sleep(0.2)
             self.test_done_flag()
         except ValueError as error:
             print(error)
