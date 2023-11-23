@@ -98,7 +98,7 @@ class Ui_Dialog(object):
 
     def retranslateUi(self, Dialog):
         _translate = QtCore.QCoreApplication.translate
-        Dialog.setWindowTitle(_translate("Dialog", "自动测试工具v2.0.1"))
+        Dialog.setWindowTitle(_translate("Dialog", "自动测试工具v2.0.2"))
         self.label.setText(_translate("Dialog", "运行记录"))
         self.label_2.setText(_translate("Dialog", "已执行内容"))
         self.label_3.setText(_translate("Dialog", "选择测试用例"))
@@ -126,6 +126,7 @@ class Ui_Dialog(object):
                 self.comboBox.addItem(i)
         except Exception as error:
             print(error)
+            self.comboBox.addItem('用例异常')
             pass
         self.set_item_true()
 
@@ -222,12 +223,11 @@ class Ui_Dialog(object):
                 queue_log = self.msg_queue.get()
                 if queue_log in ['\n','\r\n','\r']:     # 过滤空行
                     continue
+                # 将queue_log中的\r\n替换成\n
+                queue_log = queue_log.replace('\r\n', '\n')
                 self.textBrowser.append(queue_log)
                 self.textBrowser.moveCursor(self.textBrowser.textCursor().End)
-                self.log.write(queue_log + '\n')
-                # 长度大于100行清空
-                # if self.textBrowser.document().lineCount() > 100:
-                #     print(self.textBrowser.document().lineCount())
+                self.log.write(queue_log)
             except ValueError as error:
                 print('running_log error:')
                 print(error)

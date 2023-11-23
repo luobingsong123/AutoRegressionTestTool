@@ -167,26 +167,26 @@ class TestPerform(object):
 
     def case_run(self):
         try:
-            self.queue_log.put('测试用例&路径：' + self.filename)
-            self.queue_log.put('测试用例表名：' + self.sheet_name)
+            self.queue_log.put('测试用例&路径：' + self.filename + '\n')
+            self.queue_log.put('测试用例表名：' + self.sheet_name + '\n')
             # self.queue_log.put('重复测试次数：' + str(self.retest_time))
             # for循环根据case-step进行类初始化，每次把所有step的ssh都先连接上，再进行操作；
             # 后续改进增加连接复用，多step后台识别
             # 执行测试部分
             if self.delay_time != 0:
                 self.queue_log.put(
-                    '延时开始测试,现在不开始测试，' + str(self.delay_time) + '分钟后开始测试')
-                self.queue_log.put(time.strftime("当前时间：%Y-%m-%d %H:%M:%S" , time.localtime()))
+                    '延时开始测试,现在不开始测试，' + str(self.delay_time) + '分钟后开始测试' + '\n')
+                self.queue_log.put(time.strftime("当前时间：%Y-%m-%d %H:%M:%S\n", time.localtime()))
                 sleep(self.delay_time * 60)
             while self.retest_time != 0:
-                self.start_time = time.strftime("%Y%m%d %H：%M：%S" , time.localtime())
-                self.queue_status.put('START TIME :' + self.start_time)
+                self.start_time = time.strftime("%Y%m%d %H：%M：%S", time.localtime())
+                self.queue_status.put('START TIME :' + self.start_time + '\n')
                 for case in self.case_index:
                     # case内操作
                     class_list = []
                     self.report_xlsx = os.path.basename(self.filename).split('.')[0] + self.start_time
                     self.queue_log.put(
-                        'START TESTING CASE: %s , %s' % (case, self.start_time))
+                        'START TESTING CASE: %s , %s\n' % (case, self.start_time))
                     step_no = 0
                     for step in self.case_step_dict[case]:
                         # step的ssh初始化
@@ -203,7 +203,7 @@ class TestPerform(object):
                     for i in range(len(self.case_step_dict[case])):
                         class_list[i].close()
                     self.end_time = time.strftime("%Y%m%d %H：%M：%S", time.localtime())
-                    self.queue_log.put('CASE ENDING: %s , %s' % (case, self.end_time))
+                    self.queue_log.put('CASE ENDING: %s , %s\n' % (case, self.end_time))
                     self.case_result[case] = self.step_result
                     self.step_result = {}
                     sleep(0.1)
@@ -219,7 +219,13 @@ class TestPerform(object):
         """
         读取用例内容  用例名  用例步骤  用例内容
         """
-        df = pd.read_excel(self.filename, sheet_name=self.sheet_name)
+        try:
+            df = pd.read_excel(self.filename, sheet_name=self.sheet_name)
+        except ValueError as error:
+            self.queue_log.put('用例表格异常，请检查！\n')
+            self.queue_log.put(error)
+            self.queue_status.put('TEST_FAIL_FLAG')
+            return
         for i in df.index.values:  # 获取行号的索引，并对其进行遍历：   # 用例步骤有重复内容的话会有异常，但目前没有出现报错
             try:
                 # 根据i来获取每一行指定的数据 并利用to_dict转成字典
@@ -242,7 +248,7 @@ class TestPerform(object):
                 except KeyError:
                     self.case_step_dict[read_case[0]] = [read_step[0]]
             except KeyError as KeyError_msg:
-                self.queue_log.put('用例表格内容有误，请检查！')
+                self.queue_log.put('用例表格内容有误，请检查！\n')
                 self.queue_log.put(KeyError_msg)
                 self.queue_status.put('TEST_FAIL_FLAG')
                 break
