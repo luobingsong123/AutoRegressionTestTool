@@ -30,7 +30,6 @@ class PyShell(object):
         # 链接失败的重试次数
         self.try_times = 3
         self.connet_type = True
-        self.connect()
 
     # 连接远程主机
     def connect(self):
@@ -183,16 +182,50 @@ class TestPerform(object):
                 self.queue_status.put('START TIME :' + self.start_time + '\n')
                 for case in self.case_index:
                     # case内操作
-                    class_list = []
+                    class_list = {0:[]}
                     self.report_xlsx = os.path.basename(self.filename).split('.')[0] + self.start_time
                     self.queue_log.put(
                         'START TESTING CASE: %s , %s\n' % (case, self.start_time))
                     step_no = 0
+                    # 加一步连接复用
                     for step in self.case_step_dict[case]:
                         # step的ssh初始化
-                        step_init = PyShell(self.queue_log, **self.test_data_dict[case][step])  # 如果是连服务器，则传递字典进去
-                        class_list.append(step_init)
-                        self.step_result[self.case_step_dict[case][step_no]] = step_init.start_test()
+                        # 判断一下step里面的连接复用标志，如果大于1则复用，否则不复用
+                        # print(self.test_data_dict[case][step])
+                        step_connect_reuse = self.test_data_dict[case][step]['连接复用']
+                        # 如何实现复用算法是个问题
+                        if step_connect_reuse == 0:
+                            step_init = PyShell(self.queue_log, **self.test_data_dict[case][step])  # 如果是连服务器，则传递字典进去
+                            class_list[0].append(step_init)
+                            step_init.connect()
+                            # step执行,执行完后返回结果
+                            self.step_result[self.case_step_dict[case][step_no]] = step_init.start_test()
+                        else:
+                            # 如果连接存在，则不用再连接
+                            # 如果连接不存在，则先连接，再跑用例命令
+                            if step_connect_reuse not in class_list.keys():
+                                step_init = PyShell(self.queue_log, **self.test_data_dict[case][step])
+                                class_list[step_connect_reuse]=step_init
+                                step_init.connect()
+                                self.step_result[self.case_step_dict[case][step_no]] = step_init.start_test()
+                            else:
+                                # 如果连接存在，则不用再连接,执行属性数据初始化
+                                # class_list[step_connect_reuse].__init__(self,self.queue_log, **self.test_data_dict[case][step])
+                                class_list[step_connect_reuse].comments = self.test_data_dict[case][step]['说明']
+                                class_list[step_connect_reuse].server = self.test_data_dict[case][step]['服务器']
+                                class_list[step_connect_reuse].user = self.test_data_dict[case][step]['用户名']
+                                class_list[step_connect_reuse].password = str(self.test_data_dict[case][step]['密码'])
+                                class_list[step_connect_reuse].shell_str_mod = str(self.test_data_dict[case][step]['发送模式'])
+                                if class_list[step_connect_reuse].shell_str_mod == '1':
+                                    class_list[step_connect_reuse].shell_str = self.test_data_dict[case][step]['发送命令'].split('|')
+                                else:
+                                    class_list[step_connect_reuse].shell_str = [(self.test_data_dict[case][step]['发送命令'])]
+                                class_list[step_connect_reuse].wait_str = self.test_data_dict[case][step]['等待回显'].split('|')
+                                class_list[step_connect_reuse].wait_time = self.test_data_dict[case][step]['刷新间隔']
+                                class_list[step_connect_reuse].timeout = self.test_data_dict[case][step]['超时时间']
+                                class_list[step_connect_reuse].fail_str = self.test_data_dict[case][step]['失败回显'].split('|')
+                                # step执行,执行完后返回结果
+                                self.step_result[self.case_step_dict[case][step_no]] = class_list[step_connect_reuse].start_test()
                         sleep(0.2)
                         if self.step_result[self.case_step_dict[case][step_no]][0]:
                             self.queue_status.put(case + '   ' + self.case_step_dict[case][step_no] + '   ' + 'pass')
@@ -200,8 +233,14 @@ class TestPerform(object):
                             self.queue_status.put(case + '   ' + self.case_step_dict[case][step_no] + '   ' + 'fail')
                         step_no += 1
                     # STEP执行完成后断开ssh连接
-                    for i in range(len(self.case_step_dict[case])):
-                        class_list[i].close()
+                    # print(class_list)
+                    for keys in class_list.keys():
+                        if keys == 0:
+                            for i in range(len(class_list[keys])):
+                                # print(class_list[keys][i])
+                                class_list[keys][i].close()
+                        else:
+                            class_list[keys].close()
                     self.end_time = time.strftime("%Y%m%d %H：%M：%S", time.localtime())
                     self.queue_log.put('CASE ENDING: %s , %s\n' % (case, self.end_time))
                     self.case_result[case] = self.step_result
@@ -233,7 +272,7 @@ class TestPerform(object):
                 read_step = df.loc[i, ['步骤', ]].to_list()
                 content = df.loc[
                     i, ['说明', '服务器', '用户名', '密码', '发送命令', '发送模式', '等待回显', '刷新间隔',
-                        '超时时间', '失败回显']].to_dict()
+                        '超时时间', '失败回显', '连接复用']].to_dict()
                 # case名称做键，step做值，剩下的东西做step里的子键值
                 try:
                     self.test_data_dict[read_case[0]][read_step[0]] = content
