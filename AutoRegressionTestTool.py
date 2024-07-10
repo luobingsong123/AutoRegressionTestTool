@@ -1,11 +1,19 @@
+import faulthandler
 import sys
-from PyQt5.QtWidgets import *
+from PyQt5.QtWidgets import QApplication, QMainWindow
 from ui import AutoRegressionTestTool_ui
 
-if __name__ == '__main__':
+
+def main():
+    faulthandler.enable()
     app = QApplication(sys.argv)
     MainWindow = QMainWindow()
-    window = AutoRegressionTestTool_ui.Ui_Dialog()
-    window.setupUi(MainWindow)
+    main_ui = AutoRegressionTestTool_ui.Ui_Dialog()
+    main_ui.setupUi(MainWindow)
     MainWindow.show()
-    sys.exit(app.exec_())
+    app.exec_()
+
+
+if __name__ == '__main__':
+    main()
+
