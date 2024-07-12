@@ -16,6 +16,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtGui import *
 
 from py_ssh import AutoRegressionTestTool_main
+import logging
 
 
 class Ui_Dialog(object):
@@ -167,6 +168,10 @@ class Ui_Dialog(object):
             file = os.path.basename(self.lineEdit.text()).split('.')[0] + start_time
             self.log = open('./log/' + file + '.log', '+a', encoding='utf-8')
 
+            # self.textBrowser.clear()
+            self.set_textBrowser_clear()
+            self.listWidget.clear()
+
             self.running_log_thread = Thread(target = self.running_log , args = ())
             self.test_status_thread = Thread(target = self.test_status , args = ())
 
@@ -175,8 +180,6 @@ class Ui_Dialog(object):
             self.running_log_thread.start()
             # 启动测试状态刷新输出界面进程
             self.test_status_thread.start()
-            self.textBrowser.clear()
-            self.listWidget.clear()
 
             self.status_queue.put('UI_START_FLAG')
 
@@ -216,24 +219,37 @@ class Ui_Dialog(object):
         # 清空消息队列
         self.msg_queue.close()
         self.status_queue.close()
+        time.sleep(3)
 
     # 获取下拉列表活动状态
     def sheet_value(self, sheet):
         self.sheet_name = sheet
 
     def running_log(self):
+        queue_log_tail = ''
         while True:
             try:
                 # 减少资源占用
                 time.sleep(0.05)
-                queue_log = self.msg_queue.get()
+                queue_log = queue_log_tail + self.msg_queue.get()
                 if queue_log in ['\n','\r\n','\r']:     # 过滤空行
                     continue
-                # 将queue_log中的\r\n替换成\n
-                queue_log = queue_log.replace('\r\n', '\n')
+                # if queue_log == 'CLEAR_FLAG':     # 收到这个标志就清空textBrowser
+                #     self.set_textBrowser_clear()
+                    # time.sleep(1)
+                    # continue
+                #将queue_log中的\r\n替换成\n
+                # queue_log = queue_log.replace('\r\n', '\n')
+                if queue_log[-1:] != '\n':
+                    last_newline_index = queue_log.rfind('\n')
+                    queue_log_tail = queue_log[last_newline_index + 1:]
+                    queue_log = queue_log[:last_newline_index + 1]
                 self.textBrowser.append(queue_log)
                 self.textBrowser.moveCursor(self.textBrowser.textCursor().End)
                 self.log.write(queue_log)
+                # print('saaaaaaaaadasdasd:',queue_log)
+                print("queue_log_tail!!!!!!!!!!!!!!",queue_log_tail)
+                # print(queue_log)
             except ValueError as error:
                 print('running_log error:')
                 print(error)
@@ -297,3 +313,7 @@ class Ui_Dialog(object):
         self.comboBox.setEnabled(True)
         self.listWidget.setEnabled(True)
         self.lineEdit_5.setEnabled(True)
+
+    def set_textBrowser_clear(self):
+        self.textBrowser.clear()
+        self.textBrowser.moveCursor(self.textBrowser.textCursor().End)

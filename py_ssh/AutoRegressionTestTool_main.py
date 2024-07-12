@@ -37,7 +37,7 @@ class PyShell(object):
         while True:
             # 连接过程中可能会抛出异常，比如网络不通、链接超时
             if self.server == 'cmd':
-                self.msg_log.put('执行本地cmd命令')
+                self.msg_log.put('执行本地cmd命令\n')
                 return
             try:
                 self.transport = paramiko.Transport(sock=(self.server, 22))
@@ -47,45 +47,40 @@ class PyShell(object):
                 self.channel.get_pty()
                 self.channel.invoke_shell()  # 伪终端方法，命令执行后连接不会重置
                 # 如果没有抛出异常说明连接成功，直接返回
-                self.msg_log.put('连接%s成功' % self.server)
+                self.msg_log.put('连接%s成功\n' % self.server)
                 time.sleep(0.1)
                 # 接收到的网络数据解码为str
                 return
             # 直接返回失败不定位
             except Exception:
                 if self.try_times != 0:
-                    self.msg_log.put('连接%s失败，正在重新连接' % self.server)
+                    self.msg_log.put('连接%s失败，正在重新连接\n' % self.server)
                     self.try_times -= 1
                 else:
-                    self.msg_log.put('连接服务器失败，请检查用户名密码是否正确，目标服务器是否在线。')
+                    self.msg_log.put('连接服务器失败，请检查用户名密码是否正确，目标服务器是否在线。\n')
                     self.connet_type = False
                     return self.connet_type
                     # exit(1)     # 直接退出了程序
 
     # 发送要执行的命令
     def send(self, cmd):
-        cmd += '\r'
+        cmd += ''
         result = ''
         # 发送要执行的命令
         self.channel.send(cmd)
         # 回显很长的命令可能执行较久，通过循环分批次取回回显,执行成功返回true,失败返回false
         while True:
             sleep(0.01)
-            recv_cache = self.channel.recv(65535)
+            recv_cache = self.channel.recv(-1)
             try:
                 ret = recv_cache.decode('utf-8')
             except UnicodeDecodeError:
-                # try:
-                #     print('UnicodeDecodeError')
-                #     ret = recv_cache.decode('gbk')
-                #     # print(ret)
-                #     # print('UnicodeDecodeError')
-                # except Exception:
-                # 力大飞砖
-                # print('utf-8 DecodeError and gbk DecodeError')
                 ret = str(recv_cache)
             result += ret
-            return result
+            # print('-----------------------start-----------------------')
+            # print(result)
+            # print('-----------------------stop-----------------------')
+            return result.replace('\r\n', '\n')
 
     # 启动命令下发&回显匹配 // 执行windows本地bat脚本
     def start_test(self):
@@ -112,7 +107,7 @@ class PyShell(object):
                         return False, self.comments + ' fail'
                 else:
                     for i in self.shell_str:
-                        result = self.send(i)
+                        result = self.send(i+'\n')
                         self.msg_log.put(result)
                     # 判断回显
                     while times < self.timeout:
@@ -126,16 +121,16 @@ class PyShell(object):
                         while wait_time < self.wait_time:
                             times += 1
                             wait_time += 1
-                            sleep(0.95)
-                        result = self.send('\n')
+                            sleep(0.9)
+                        result = self.send('')
                         self.msg_log.put(result)
                     return False, self.comments + ' timeout'
             else:
                 return False, self.comments + ' server is offline'
         except OSError as error:
             print(error)
-            self.msg_log.put('OSError: Socket is closed')
-            self.msg_log.put('连接已断开')
+            self.msg_log.put('OSError: Socket is closed\n')
+            self.msg_log.put('连接已断开\n')
             return False, self.comments + ' OSError: Socket is closed'
 
     # 断开连接
@@ -200,7 +195,6 @@ class TestPerform(object):
                         # 判断一下step里面的连接复用标志，如果大于1则复用，否则不复用
                         # print(self.test_data_dict[case][step])
                         step_connect_reuse = self.test_data_dict[case][step]['连接复用']
-                        # 如何实现复用算法是个问题
                         if step_connect_reuse == 0:
                             step_init = PyShell(self.queue_log, **self.test_data_dict[case][step])  # 如果是连服务器，则传递字典进去
                             class_list[0].append(step_init)
@@ -241,6 +235,9 @@ class TestPerform(object):
                         else:
                             self.queue_status.put(str(case) + '   ' + self.case_step_dict[case][step_no] + '   ' + 'fail')
                         step_no += 1
+                        # # 增加用例间间隔，为清输出窗口留出时间
+                        # self.test_clear_flag()
+                        # sleep(2)
                     # STEP执行完成后断开ssh连接
                     # print('case:',class_list)
                     for keys in class_list.keys():
@@ -372,3 +369,7 @@ class TestPerform(object):
     def test_done_flag(self):
         # 用例执行完成标志
         self.queue_status.put('TEST_FINISH_FLAG')
+
+    def test_clear_flag(self):
+        # 用例执行完成标志
+        self.queue_log.put('CLEAR_FLAG\n')
