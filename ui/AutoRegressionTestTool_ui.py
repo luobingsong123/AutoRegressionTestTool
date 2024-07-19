@@ -17,6 +17,7 @@ from PyQt5.QtGui import *
 
 from py_ssh import AutoRegressionTestTool_main
 import logging
+import time
 
 
 class Ui_Dialog(object):
@@ -208,7 +209,9 @@ class Ui_Dialog(object):
                 self.test.test_done_flag()
                 time.sleep(0.1)
         else:
-            pass
+            self.status_queue.put('UI_STOP_FLAG')
+            self.test.test_done_flag()
+            time.sleep(0.1)
         self.set_item_true()
         try:
             self.log.close()
@@ -247,9 +250,6 @@ class Ui_Dialog(object):
                 self.textBrowser.append(queue_log)
                 self.textBrowser.moveCursor(self.textBrowser.textCursor().End)
                 self.log.write(queue_log)
-                # print('saaaaaaaaadasdasd:',queue_log)
-                print("queue_log_tail!!!!!!!!!!!!!!",queue_log_tail)
-                # print(queue_log)
             except ValueError as error:
                 print('running_log error:')
                 print(error)
@@ -303,6 +303,7 @@ class Ui_Dialog(object):
         self.comboBox.setEnabled(False)
         self.listWidget.setEnabled(False)
         self.lineEdit_5.setEnabled(False)
+
 
     def set_item_true(self):
         self.pushButton_starttest.setEnabled(True)

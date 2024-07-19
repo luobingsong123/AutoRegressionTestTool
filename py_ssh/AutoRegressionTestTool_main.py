@@ -7,6 +7,7 @@ import pandas as pd
 import paramiko
 
 
+
 class PyShell(object):
     def __init__(self, queue, **kwargs):
         # self.case = kwargs['用例名']
@@ -77,9 +78,6 @@ class PyShell(object):
             except UnicodeDecodeError:
                 ret = str(recv_cache)
             result += ret
-            # print('-----------------------start-----------------------')
-            # print(result)
-            # print('-----------------------stop-----------------------')
             return result.replace('\r\n', '\n')
 
     # 启动命令下发&回显匹配 // 执行windows本地bat脚本
