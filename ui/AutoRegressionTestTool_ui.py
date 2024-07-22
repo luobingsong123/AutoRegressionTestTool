@@ -247,6 +247,8 @@ class Ui_Dialog(object):
                     last_newline_index = queue_log.rfind('\n')
                     queue_log_tail = queue_log[last_newline_index + 1:]
                     queue_log = queue_log[:last_newline_index + 1]
+                else:
+                    queue_log_tail = ''
                 self.textBrowser.append(queue_log)
                 self.textBrowser.moveCursor(self.textBrowser.textCursor().End)
                 self.log.write(queue_log)
