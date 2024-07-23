@@ -1,11 +1,8 @@
 import os
-import time
 from subprocess import call
-from time import sleep
-
+from time import sleep,localtime,strftime
 import pandas as pd
 import paramiko
-
 
 
 class PyShell(object):
@@ -49,7 +46,7 @@ class PyShell(object):
                 self.channel.invoke_shell()  # 伪终端方法，命令执行后连接不会重置
                 # 如果没有抛出异常说明连接成功，直接返回
                 self.msg_log.put('连接%s成功\n' % self.server)
-                time.sleep(0.1)
+                sleep(0.1)
                 # 接收到的网络数据解码为str
                 return
             # 直接返回失败不定位
@@ -163,7 +160,6 @@ class TestPerform(object):
         self.step_result = {}
         self.delay_time = delay_time
 
-
     def case_run(self):
         try:
             self.queue_log.put('测试用例&路径：' + self.filename + '\n')
@@ -173,12 +169,11 @@ class TestPerform(object):
             # 后续改进增加连接复用，多step后台识别
             # 执行测试部分
             if self.delay_time != 0:
-                self.queue_log.put(
-                    '延时开始测试,现在不开始测试，' + str(self.delay_time) + '分钟后开始测试' + '\n')
-                self.queue_log.put(time.strftime("当前时间：%Y-%m-%d %H:%M:%S\n", time.localtime()))
+                self.queue_log.put('延时开始测试,现在不开始测试，' + str(self.delay_time) + '分钟后开始测试' + '\n')
+                self.queue_log.put(strftime("当前时间：%Y-%m-%d %H:%M:%S\n", localtime()))
                 sleep(self.delay_time * 60)
             while self.retest_time != 0:
-                self.start_time = time.strftime("%Y%m%d %H：%M：%S", time.localtime())
+                self.start_time = strftime("%Y%m%d %H：%M：%S", localtime())
                 self.queue_status.put('开测时间:' + self.start_time + '  第' + str(self.ret - self.retest_time) + '次测试')
                 for case in self.case_index:
                     # case内操作
@@ -223,19 +218,16 @@ class TestPerform(object):
                                 class_list[step_connect_reuse].wait_time = self.test_data_dict[case][step]['刷新间隔']
                                 class_list[step_connect_reuse].timeout = self.test_data_dict[case][step]['超时时间']
                                 class_list[step_connect_reuse].fail_str = self.test_data_dict[case][step]['失败回显'].split('|')
-                                time.sleep(0.5)
+                                sleep(0.5)
                                 # step执行,执行完后返回结果
                                 self.step_result[self.case_step_dict[case][step_no]] = class_list[step_connect_reuse].start_test()
-                        sleep(0.2)
+                        sleep(0.5)
                         result = self.step_result.get(self.case_step_dict[case][step_no])
                         if result is not None and result[0]:
                             self.queue_status.put(str(case) + '   ' + self.case_step_dict[case][step_no] + '   ' + 'pass')
                         else:
                             self.queue_status.put(str(case) + '   ' + self.case_step_dict[case][step_no] + '   ' + 'fail')
                         step_no += 1
-                        # # 增加用例间间隔，为清输出窗口留出时间
-                        # self.test_clear_flag()
-                        # sleep(2)
                     # STEP执行完成后断开ssh连接
                     # print('case:',class_list)
                     for keys in class_list.keys():
@@ -245,16 +237,16 @@ class TestPerform(object):
                                 class_list[keys][i].close()
                         else:
                             class_list[keys].close()
-                    self.end_time = time.strftime("%Y%m%d %H：%M：%S", time.localtime())
+                    self.end_time = strftime("%Y%m%d %H：%M：%S", localtime())
                     self.queue_log.put('当前用例执行完成: %s , %s\n' % (case, self.end_time))
                     self.case_result[case] = self.step_result
                     self.step_result = {}
-                    sleep(0.1)
+                    sleep(0.5)
                 self.test_result()
                 self.retest_time -= 1
-                sleep(1)
+                sleep(0.5)
             self.test_done_flag()
-            sleep(1)
+            sleep(3)
         except ValueError as error:
             print(error)
             pass
@@ -330,11 +322,6 @@ class TestPerform(object):
                 test_fail += 1
         df = pd.DataFrame({'test_case': test_case, 'test_step': test_step, 'test_result': test_result,
                            'test_comments': test_comments})
-        # 报告格式&着色相关
-        # df_style = df.style.applymap(lambda x: 'background-color:green' if test_result == 'pass' else 'background-color:red', subset=['test_result'])
-        # writer = pd.ExcelWriter('./report/' + self.report_xlsx + '.xlsx',)
-        # df_style.to_excel(writer,sheet_name='Sheet1', index=False)
-        # writer.save()
         df.to_excel('./report/' + self.report_xlsx + '.xlsx',index=False)
         # 输出html格式报告
         f = open('./report/' + self.report_xlsx + '.html', 'a')
@@ -367,7 +354,3 @@ class TestPerform(object):
     def test_done_flag(self):
         # 用例执行完成标志
         self.queue_status.put('TEST_FINISH_FLAG')
-
-    def test_clear_flag(self):
-        # 用例执行完成标志
-        self.queue_log.put('CLEAR_FLAG\n')

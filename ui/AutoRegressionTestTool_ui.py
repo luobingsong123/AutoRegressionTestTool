@@ -1,10 +1,4 @@
 # -*- coding: utf-8 -*-
-
-import os
-import time
-from multiprocessing import Queue
-from threading import Thread
-
 # Form implementation generated from reading ui file 'AutoRegressionTestTool_ui.ui'
 #
 # Created by: PyQt5 UI code generator 5.15.2
@@ -14,14 +8,16 @@ from threading import Thread
 import pandas as pd
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtGui import *
-
 from py_ssh import AutoRegressionTestTool_main
-import logging
-import time
+from time import sleep,strftime, localtime
+import os
+import queue
 
 
-class Ui_Dialog(object):
+class Ui_Dialog(QtCore.QObject):
+    clear_signal = QtCore.pyqtSignal()
     def __init__(self):
+        super().__init__()
         self.sheet_name = ''
         self.cycle_time = 1
 
@@ -123,7 +119,6 @@ class Ui_Dialog(object):
 
     def chose_file(self):
         title = "选择用例表格"  # 对话框标题
-        time.sleep(0.01)
         self.set_item_flase()
         self.listWidget.clear()
 
@@ -143,8 +138,8 @@ class Ui_Dialog(object):
 
     def start_test(self):
         # 生成消息队列
-        self.msg_queue = Queue()
-        self.status_queue = Queue()
+        self.msg_queue = queue.Queue()
+        self.status_queue = queue.Queue()
         self.pushButton_starttest.setEnabled(False)
         self.pushButton_stoptest.setEnabled(True)
         self.delay_time = 0
@@ -163,23 +158,20 @@ class Ui_Dialog(object):
             else:
                 print('The report directory already exists.')
 
-            time.sleep(0.01)
+            sleep(0.01)
             self.set_item_flase()
-            start_time = time.strftime("%Y-%m-%d %H-%M-%S", time.localtime())
+            start_time = strftime("%Y-%m-%d %H-%M-%S", localtime())
             file = os.path.basename(self.lineEdit.text()).split('.')[0] + start_time
             self.log = open('./log/' + file + '.log', '+a', encoding='utf-8')
 
-            # self.textBrowser.clear()
-            self.set_textBrowser_clear()
+            self.textBrowser.clear()
             self.listWidget.clear()
 
-            self.running_log_thread = Thread(target = self.running_log , args = ())
-            self.test_status_thread = Thread(target = self.test_status , args = ())
+            self.running_log_thread = RunningLogThread(self, self.msg_queue)
+            self.test_status_thread = TestStatusThread(self, self.status_queue)
 
-            time.sleep(0.01)
-            # 启动命令运行log刷新输出界面进程
+            # 启动线程
             self.running_log_thread.start()
-            # 启动测试状态刷新输出界面进程
             self.test_status_thread.start()
 
             self.status_queue.put('UI_START_FLAG')
@@ -196,62 +188,102 @@ class Ui_Dialog(object):
             else:
                 self.cycle_time = 1
             self.test = AutoRegressionTestTool_main.TestPerform(self.lineEdit.text(), self.sheet_name, self.cycle_time, self.msg_queue, self.status_queue, self.delay_time)
-            self.start_ = Thread(target=self.test.case_run, args=())
+            self.start_ = TestThread(self.test)
             self.start_.start()
-
+            
     def stop_test(self):
         self.pushButton_stoptest.setEnabled(False)
         if self.lineEdit.text() == '':
             pass
-        elif self.start_.is_alive():
-            if self.running_log_thread.is_alive():
+        elif self.start_.isRunning():
+            if self.running_log_thread.isRunning():
                 self.status_queue.put('UI_STOP_FLAG')
                 self.test.test_done_flag()
-                time.sleep(0.1)
         else:
             self.status_queue.put('UI_STOP_FLAG')
             self.test.test_done_flag()
-            time.sleep(0.1)
         self.set_item_true()
         try:
             self.log.close()
         except ValueError as e:
             print(e)
-        self.start_.join(0.1)
-        time.sleep(0.1)
-        # 清空消息队列
-        self.msg_queue.close()
-        self.status_queue.close()
-        time.sleep(3)
+        self.msg_queue.queue.clear()
+        self.status_queue.queue.clear()
+        sleep(0.5)
 
     # 获取下拉列表活动状态
     def sheet_value(self, sheet):
         self.sheet_name = sheet
 
+    def set_item_flase(self):
+        self.pushButton_starttest.setEnabled(False)
+        self.pushButton_chosefile.setEnabled(False)
+        self.radioButton.setEnabled(False)
+        self.lineEdit.setEnabled(False)
+        self.lineEdit_2.setEnabled(False)
+        self.comboBox.setEnabled(False)
+        self.listWidget.setEnabled(False)
+        self.lineEdit_5.setEnabled(False)
+
+    def set_item_true(self):
+        self.pushButton_starttest.setEnabled(True)
+        self.pushButton_chosefile.setEnabled(True)
+        self.radioButton.setEnabled(True)
+        self.lineEdit.setEnabled(True)
+        self.lineEdit_2.setEnabled(True)
+        self.comboBox.setEnabled(True)
+        self.listWidget.setEnabled(True)
+        self.lineEdit_5.setEnabled(True)
+
+
+class TestThread(QtCore.QThread):
+    def __init__(self, test):
+        QtCore.QThread.__init__(self)
+        self.test = test
+
+    def run(self):
+        self.test.case_run()
+
+
+class RunningLogThread(QtCore.QThread):
+    append_signal = QtCore.pyqtSignal(str)
+    append_mv = QtCore.pyqtSignal()
+
+    def __init__(self, ui, msg_queue):
+        super().__init__()
+        self.ui = ui
+        self.msg_queue = msg_queue
+        self.append_signal.connect(self.ui.textBrowser.append)
+        self.append_mv.connect(self.move_cursor_to_end)
+
+    def move_cursor_to_end(self):
+        cursor = self.ui.textBrowser.textCursor()
+        cursor.movePosition(QtGui.QTextCursor.End)
+        self.ui.textBrowser.setTextCursor(cursor)
+
+    def run(self):
+        self.running_log()
+
     def running_log(self):
         queue_log_tail = ''
+        lines_count = 0
         while True:
             try:
                 # 减少资源占用
-                time.sleep(0.05)
                 queue_log = queue_log_tail + self.msg_queue.get()
-                if queue_log in ['\n','\r\n','\r']:     # 过滤空行
-                    continue
-                # if queue_log == 'CLEAR_FLAG':     # 收到这个标志就清空textBrowser
-                #     self.set_textBrowser_clear()
-                    # time.sleep(1)
-                    # continue
-                #将queue_log中的\r\n替换成\n
-                # queue_log = queue_log.replace('\r\n', '\n')
+                if lines_count > 10000:
+                    self.ui.clear_signal.emit()
+                    lines_count = 0
+                lines_count += len(queue_log.split('\n'))
                 if queue_log[-1:] != '\n':
                     last_newline_index = queue_log.rfind('\n')
                     queue_log_tail = queue_log[last_newline_index + 1:]
                     queue_log = queue_log[:last_newline_index + 1]
                 else:
                     queue_log_tail = ''
-                self.textBrowser.append(queue_log)
-                self.textBrowser.moveCursor(self.textBrowser.textCursor().End)
-                self.log.write(queue_log)
+                self.append_signal.emit(queue_log)
+                self.append_mv.emit()
+                self.ui.log.write(queue_log)
             except ValueError as error:
                 print('running_log error:')
                 print(error)
@@ -264,10 +296,19 @@ class Ui_Dialog(object):
                 print('probably cmd str error!')
                 continue
 
+
+class TestStatusThread(QtCore.QThread):
+    def __init__(self, ui, status_queue):
+        super().__init__()
+        self.ui = ui
+        self.status_queue = status_queue
+
+    def run(self):
+        self.test_status()
+
     def test_status(self):
         while True:
             try:
-                time.sleep(0.05)
                 queue_status = self.status_queue.get()
                 # 测试状态标志
                 if queue_status == 'UI_START_FLAG':
@@ -277,46 +318,20 @@ class Ui_Dialog(object):
                 # 后面环境因素或者奇怪的跑脚本失败要做新的处理，目前暂时跟测试完成一样处理
                 elif queue_status == 'TEST_FAIL_FLAG':
                     print('TEST_FAIL_FLAG')
-                    self.stop_test()
+                    self.ui.stop_test()
                 elif queue_status == 'TEST_FINISH_FLAG':
                     print('TEST_FINISH_FLAG')
-                    self.stop_test()
+                    self.ui.stop_test()
                 else:
-                    index = self.listWidget.currentRow() + 1
-                    self.listWidget.addItem(queue_status)
+                    index = self.ui.listWidget.currentRow() + 1
+                    self.ui.listWidget.addItem(queue_status)
                     if 'pass' in queue_status:
-                        self.listWidget.item(index).setBackground(QColor('#7FFF11'))
+                        self.ui.listWidget.item(index).setBackground(QColor('#7FFF11'))
                     elif 'fail' in queue_status:
-                        self.listWidget.item(index).setBackground(QColor('red'))
-                    self.listWidget.setCurrentRow(self.listWidget.currentRow()+1)
-                    self.log.write('')
-                # print('status_queue')
+                        self.ui.listWidget.item(index).setBackground(QColor('red'))
+                    self.ui.listWidget.setCurrentRow(self.ui.listWidget.currentRow()+1)
+                    self.ui.log.write('')
             except ValueError as error:
                 print('test_status error:')
                 print(error)  # 用来停打印
                 break
-
-    def set_item_flase(self):
-        self.pushButton_starttest.setEnabled(False)
-        self.pushButton_chosefile.setEnabled(False)
-        self.radioButton.setEnabled(False)
-        self.lineEdit.setEnabled(False)
-        self.lineEdit_2.setEnabled(False)
-        self.comboBox.setEnabled(False)
-        self.listWidget.setEnabled(False)
-        self.lineEdit_5.setEnabled(False)
-
-
-    def set_item_true(self):
-        self.pushButton_starttest.setEnabled(True)
-        self.pushButton_chosefile.setEnabled(True)
-        self.radioButton.setEnabled(True)
-        self.lineEdit.setEnabled(True)
-        self.lineEdit_2.setEnabled(True)
-        self.comboBox.setEnabled(True)
-        self.listWidget.setEnabled(True)
-        self.lineEdit_5.setEnabled(True)
-
-    def set_textBrowser_clear(self):
-        self.textBrowser.clear()
-        self.textBrowser.moveCursor(self.textBrowser.textCursor().End)
