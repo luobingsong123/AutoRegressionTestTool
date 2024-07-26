@@ -123,11 +123,11 @@ class Ui_Dialog(QtCore.QObject):
         self.listWidget.clear()
 
         try:
-            file = QtWidgets.QFileDialog.getOpenFileName(caption=title)[0]
-            self.lineEdit.setText(file)
+            self.filename = QtWidgets.QFileDialog.getOpenFileName(caption=title)[0]
+            self.lineEdit.setText(self.filename)
             self.comboBox.clear()
             self.comboBox.setEnabled(True)
-            sheet_list = list(pd.read_excel(file, sheet_name=None))
+            sheet_list = list(pd.read_excel(self.filename, sheet_name=None))
             for i in sheet_list:
                 self.comboBox.addItem(i)
         except Exception as error:
@@ -161,9 +161,9 @@ class Ui_Dialog(QtCore.QObject):
             sleep(0.01)
             self.set_item_flase()
             start_time = strftime("%Y-%m-%d %H-%M-%S", localtime())
-            file = os.path.basename(self.lineEdit.text()).split('.')[0] + start_time
+            file = os.path.basename(self.filename).split('.')[0] + start_time
             self.log = open('./log/' + file + '.log', '+a', encoding='utf-8')
-
+            self.case_read()
             self.textBrowser.clear()
             self.listWidget.clear()
 
@@ -187,12 +187,16 @@ class Ui_Dialog(QtCore.QObject):
                     self.cycle_time = -1
             else:
                 self.cycle_time = 1
-            self.test = AutoRegressionTestTool_main.TestPerform(self.lineEdit.text(), self.sheet_name, self.cycle_time, self.msg_queue, self.status_queue, self.delay_time)
+            self.test = AutoRegressionTestTool_main.TestPerform(self.filename, self.sheet_name, self.cycle_time, self.msg_queue, self.status_queue, self.delay_time,self.test_data_dict,self.case_index, self.case_step_dict)
             self.start_ = TestThread(self.test)
             self.start_.start()
             
     def stop_test(self):
         self.pushButton_stoptest.setEnabled(False)
+        self.test.close_all_ssh()
+        self.start_.terminate()
+        self.running_log_thread.terminate()
+        self.test_status_thread.terminate()
         if self.lineEdit.text() == '':
             pass
         elif self.start_.isRunning():
@@ -209,11 +213,56 @@ class Ui_Dialog(QtCore.QObject):
             print(e)
         self.msg_queue.queue.clear()
         self.status_queue.queue.clear()
-        sleep(0.5)
+        sleep(1)
 
     # 获取下拉列表活动状态
     def sheet_value(self, sheet):
         self.sheet_name = sheet
+
+    def case_read(self):
+        """
+        读取用例内容  用例名  用例步骤  用例内容
+        """
+        self.test_data_dict = {}
+        self.case_index = []
+        self.case_step_dict = {}
+        try:
+            df = pd.read_excel(self.filename, sheet_name=self.sheet_name)
+        except ValueError as error:
+            self.msg_queue.put('用例表格异常，请检查！\n')
+            self.msg_queue.put(error)
+            self.status_queue.put('TEST_FAIL_FLAG')
+            return
+        for i in df.index.values:  # 获取行号的索引，并对其进行遍历：   # 用例步骤有重复内容的话会有异常，但目前没有出现报错
+            try:
+                # 根据i来获取每一行指定的数据 并利用to_dict转成字典
+                read_case = df.loc[i, ['用例名', ]].to_list()
+                read_step = df.loc[i, ['步骤', ]].to_list()
+                content = df.loc[
+                    i, ['说明', '服务器', '用户名', '密码', '发送命令', '发送模式', '等待回显', '刷新间隔',
+                        '超时时间', '失败回显', '连接复用']].to_dict()
+                # case名称做键，step做值，剩下的东西做step里的子键值
+                try:
+                    self.test_data_dict[read_case[0]][read_step[0]] = content
+                except KeyError:
+                    self.test_data_dict[read_case[0]] = {read_step[0]: content}
+                # 按表格顺序获取case,去掉重复case,作为case索引 case_index
+                if read_case[0] not in self.case_index:
+                    self.case_index.append(read_case[0])
+                # step字典,case_step_dict
+                try:
+                    self.case_step_dict[read_case[0]].append(read_step[0])
+                except KeyError:
+                    self.case_step_dict[read_case[0]] = [read_step[0]]
+            except KeyError as KeyError_msg:
+                self.msg_queue.put('用例表格内容有误，请检查！\n')
+                self.msg_queue.put(KeyError_msg)
+                self.status_queue.put('TEST_FAIL_FLAG')
+                break
+        # 创建一个带表头的全局xlsx
+        # self.df = pd.DataFrame({'test_case', 'test_step', 'test_result','test_comments'})
+        # 还要一个计数，行的计数,从1开始，不算表头
+        # self.df_row = 1
 
     def set_item_flase(self):
         self.pushButton_starttest.setEnabled(False)
@@ -321,7 +370,9 @@ class TestStatusThread(QtCore.QThread):
                     self.ui.stop_test()
                 elif queue_status == 'TEST_FINISH_FLAG':
                     print('TEST_FINISH_FLAG')
-                    self.ui.stop_test()
+                    # self.ui.stop_test()
+                    sleep(1)
+                    self.ui.set_item_true()
                 else:
                     index = self.ui.listWidget.currentRow() + 1
                     self.ui.listWidget.addItem(queue_status)

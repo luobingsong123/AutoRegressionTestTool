@@ -1,7 +1,7 @@
 import os
+import sys
 from subprocess import call
 from time import sleep,localtime,strftime
-import pandas as pd
 import paramiko
 
 
@@ -144,18 +144,18 @@ class PyShell(object):
 
 # 测试执行主要逻辑代码
 class TestPerform(object):
-    def __init__(self, filename, sheet_name, retest_time, queue1, queue2, delay_time):
+    def __init__(self, filename, sheet_name, retest_time, queue1, queue2, delay_time,test_data_dict,case_index,case_step_dict):
         self.filename = filename
         self.sheet_name = sheet_name
         self.ret = retest_time
         self.retest_time = retest_time
         self.queue_log = queue1
         self.queue_status = queue2
-        self.test_data_dict = {}
-        self.case_index = []
-        self.case_step_dict = {}
-        # 获取用例内容
-        self.case_read()
+        self.test_data_dict = test_data_dict
+        self.case_index = case_index
+        self.case_step_dict = case_step_dict
+        # 获取用例内容 改到UI那边线程获取了，后面报告也直接走UI那边落
+        # self.case_read()
         self.case_result = {}
         self.step_result = {}
         self.delay_time = delay_time
@@ -177,7 +177,7 @@ class TestPerform(object):
                 self.queue_status.put('开测时间:' + self.start_time + '  第' + str(self.ret - self.retest_time) + '次测试')
                 for case in self.case_index:
                     # case内操作
-                    class_list = {0:[]}
+                    self.class_list = {0:[]}
                     self.report_xlsx = os.path.basename(self.filename).split('.')[0] + self.start_time
                     self.queue_log.put(
                         '开始测试用例: %s , %s\n' % (case, self.start_time))
@@ -189,38 +189,38 @@ class TestPerform(object):
                         # print(self.test_data_dict[case][step])
                         step_connect_reuse = self.test_data_dict[case][step]['连接复用']
                         if step_connect_reuse == 0:
-                            step_init = PyShell(self.queue_log, **self.test_data_dict[case][step])  # 如果是连服务器，则传递字典进去
-                            class_list[0].append(step_init)
-                            step_init.connect()
+                            self.step_init = PyShell(self.queue_log, **self.test_data_dict[case][step])  # 如果是连服务器，则传递字典进去
+                            self.class_list[0].append(self.step_init)
+                            self.step_init.connect()
                             # step执行,执行完后返回结果
-                            self.step_result[self.case_step_dict[case][step_no]] = step_init.start_test()
+                            self.step_result[self.case_step_dict[case][step_no]] = self.step_init.start_test()
                         else:
                             # 如果连接存在，则不用再连接
                             # 如果连接不存在，则先连接，再跑用例命令
-                            if step_connect_reuse not in class_list.keys():
-                                step_init = PyShell(self.queue_log, **self.test_data_dict[case][step])
-                                class_list[step_connect_reuse]=step_init
-                                step_init.connect()
-                                self.step_result[self.case_step_dict[case][step_no]] = step_init.start_test()
+                            if step_connect_reuse not in self.class_list.keys():
+                                self.step_init = PyShell(self.queue_log, **self.test_data_dict[case][step])
+                                self.class_list[step_connect_reuse]=self.step_init
+                                self.step_init.connect()
+                                self.step_result[self.case_step_dict[case][step_no]] = self.step_init.start_test()
                             else:
                                 # 如果连接存在，则不用再连接,执行属性数据初始化
-                                # class_list[step_connect_reuse].__init__(self,self.queue_log, **self.test_data_dict[case][step])
-                                class_list[step_connect_reuse].comments = self.test_data_dict[case][step]['说明']
-                                class_list[step_connect_reuse].server = self.test_data_dict[case][step]['服务器']
-                                class_list[step_connect_reuse].user = self.test_data_dict[case][step]['用户名']
-                                class_list[step_connect_reuse].password = str(self.test_data_dict[case][step]['密码'])
-                                class_list[step_connect_reuse].shell_str_mod = str(self.test_data_dict[case][step]['发送模式'])
-                                if class_list[step_connect_reuse].shell_str_mod == '1':
-                                    class_list[step_connect_reuse].shell_str = self.test_data_dict[case][step]['发送命令'].split('|')
+                                # self.class_list[step_connect_reuse].__init__(self,self.queue_log, **self.test_data_dict[case][step])
+                                self.class_list[step_connect_reuse].comments = self.test_data_dict[case][step]['说明']
+                                self.class_list[step_connect_reuse].server = self.test_data_dict[case][step]['服务器']
+                                self.class_list[step_connect_reuse].user = self.test_data_dict[case][step]['用户名']
+                                self.class_list[step_connect_reuse].password = str(self.test_data_dict[case][step]['密码'])
+                                self.class_list[step_connect_reuse].shell_str_mod = str(self.test_data_dict[case][step]['发送模式'])
+                                if self.class_list[step_connect_reuse].shell_str_mod == '1':
+                                    self.class_list[step_connect_reuse].shell_str = self.test_data_dict[case][step]['发送命令'].split('|')
                                 else:
-                                    class_list[step_connect_reuse].shell_str = [(self.test_data_dict[case][step]['发送命令'])]
-                                class_list[step_connect_reuse].wait_str = self.test_data_dict[case][step]['等待回显'].split('|')
-                                class_list[step_connect_reuse].wait_time = self.test_data_dict[case][step]['刷新间隔']
-                                class_list[step_connect_reuse].timeout = self.test_data_dict[case][step]['超时时间']
-                                class_list[step_connect_reuse].fail_str = self.test_data_dict[case][step]['失败回显'].split('|')
+                                    self.class_list[step_connect_reuse].shell_str = [(self.test_data_dict[case][step]['发送命令'])]
+                                self.class_list[step_connect_reuse].wait_str = self.test_data_dict[case][step]['等待回显'].split('|')
+                                self.class_list[step_connect_reuse].wait_time = self.test_data_dict[case][step]['刷新间隔']
+                                self.class_list[step_connect_reuse].timeout = self.test_data_dict[case][step]['超时时间']
+                                self.class_list[step_connect_reuse].fail_str = self.test_data_dict[case][step]['失败回显'].split('|')
                                 sleep(0.5)
                                 # step执行,执行完后返回结果
-                                self.step_result[self.case_step_dict[case][step_no]] = class_list[step_connect_reuse].start_test()
+                                self.step_result[self.case_step_dict[case][step_no]] = self.class_list[step_connect_reuse].start_test()
                         sleep(0.5)
                         result = self.step_result.get(self.case_step_dict[case][step_no])
                         if result is not None and result[0]:
@@ -229,20 +229,14 @@ class TestPerform(object):
                             self.queue_status.put(str(case) + '   ' + self.case_step_dict[case][step_no] + '   ' + 'fail')
                         step_no += 1
                     # STEP执行完成后断开ssh连接
-                    # print('case:',class_list)
-                    for keys in class_list.keys():
-                        if keys == 0:
-                            for i in range(len(class_list[keys])):
-                                # print(class_list[keys][i])
-                                class_list[keys][i].close()
-                        else:
-                            class_list[keys].close()
+                    # print('case:',self.class_list)
+                    self.close_all_ssh()
                     self.end_time = strftime("%Y%m%d %H：%M：%S", localtime())
                     self.queue_log.put('当前用例执行完成: %s , %s\n' % (case, self.end_time))
                     self.case_result[case] = self.step_result
                     self.step_result = {}
                     sleep(0.5)
-                self.test_result()
+                # self.test_result()
                 self.retest_time -= 1
                 sleep(0.5)
             self.test_done_flag()
@@ -250,48 +244,6 @@ class TestPerform(object):
         except ValueError as error:
             print(error)
             pass
-
-    def case_read(self):
-        """
-        读取用例内容  用例名  用例步骤  用例内容
-        """
-        try:
-            df = pd.read_excel(self.filename, sheet_name=self.sheet_name)
-        except ValueError as error:
-            self.queue_log.put('用例表格异常，请检查！\n')
-            self.queue_log.put(error)
-            self.queue_status.put('TEST_FAIL_FLAG')
-            return
-        for i in df.index.values:  # 获取行号的索引，并对其进行遍历：   # 用例步骤有重复内容的话会有异常，但目前没有出现报错
-            try:
-                # 根据i来获取每一行指定的数据 并利用to_dict转成字典
-                read_case = df.loc[i, ['用例名', ]].to_list()
-                read_step = df.loc[i, ['步骤', ]].to_list()
-                content = df.loc[
-                    i, ['说明', '服务器', '用户名', '密码', '发送命令', '发送模式', '等待回显', '刷新间隔',
-                        '超时时间', '失败回显', '连接复用']].to_dict()
-                # case名称做键，step做值，剩下的东西做step里的子键值
-                try:
-                    self.test_data_dict[read_case[0]][read_step[0]] = content
-                except KeyError:
-                    self.test_data_dict[read_case[0]] = {read_step[0]: content}
-                # 按表格顺序获取case,去掉重复case,作为case索引 case_index
-                if read_case[0] not in self.case_index:
-                    self.case_index.append(read_case[0])
-                # step字典,case_step_dict
-                try:
-                    self.case_step_dict[read_case[0]].append(read_step[0])
-                except KeyError:
-                    self.case_step_dict[read_case[0]] = [read_step[0]]
-            except KeyError as KeyError_msg:
-                self.queue_log.put('用例表格内容有误，请检查！\n')
-                self.queue_log.put(KeyError_msg)
-                self.queue_status.put('TEST_FAIL_FLAG')
-                break
-        # 创建一个带表头的全局xlsx
-        # self.df = pd.DataFrame({'test_case', 'test_step', 'test_result','test_comments'})
-        # 还要一个计数，行的计数,从1开始，不算表头
-        # self.df_row = 1
 
     # 输出测试结果
     def test_result(self):
@@ -320,9 +272,9 @@ class TestPerform(object):
                 test_pass += 1
             else:
                 test_fail += 1
-        df = pd.DataFrame({'test_case': test_case, 'test_step': test_step, 'test_result': test_result,
-                           'test_comments': test_comments})
-        df.to_excel('./report/' + self.report_xlsx + '.xlsx',index=False)
+        # df = pd.DataFrame({'test_case': test_case, 'test_step': test_step, 'test_result': test_result,
+        #                    'test_comments': test_comments})
+        # df.to_excel('./report/' + self.report_xlsx + '.xlsx',index=False)
         # 输出html格式报告
         f = open('./report/' + self.report_xlsx + '.html', 'a')
         message = """
@@ -348,9 +300,24 @@ class TestPerform(object):
         </html>
         """ % (self.filename, self.sheet_name,self.start_time,self.end_time,len(self.case_result.keys()),test_pass,test_fail)
         f.write(message)
-        f.write(df.to_html())
+        # f.write(df.to_html())
         f.close()
 
     def test_done_flag(self):
         # 用例执行完成标志
         self.queue_status.put('TEST_FINISH_FLAG')
+        # 关闭所有ssh连接
+
+    def close_all_ssh(self):
+        try:
+            for keys in self.class_list.keys():
+                if keys == 0:
+                    for i in range(len(self.class_list[keys])):
+                        # print(self.class_list[keys][i])
+                        self.class_list[keys][i].close()
+                else:
+                    self.class_list[keys].close()
+            self.step_init.close()
+        except Exception as error:
+            print('close_all_ssh:',error)
+            pass
