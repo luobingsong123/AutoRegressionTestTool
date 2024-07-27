@@ -12,7 +12,7 @@ class PyShell(object):
         self.msg_log = queue
         self.comments = kwargs['说明']
         self.server = kwargs['服务器']
-        self.user = kwargs['用户名']
+        self.user = str(kwargs['用户名'])
         self.password = str(kwargs['密码'])
         self.shell_str_mod = str(kwargs['发送模式'])
         if self.shell_str_mod == '1':
