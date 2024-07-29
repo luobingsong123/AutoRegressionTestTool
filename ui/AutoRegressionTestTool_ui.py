@@ -259,6 +259,7 @@ class Ui_Dialog(QtCore.QObject):
                 self.msg_queue.put(KeyError_msg)
                 self.status_queue.put('TEST_FAIL_FLAG')
                 break
+        # print(self.test_data_dict, self.case_index, self.case_step_dict)
         # 创建一个带表头的全局xlsx
         # self.df = pd.DataFrame({'test_case', 'test_step', 'test_result','test_comments'})
         # 还要一个计数，行的计数,从1开始，不算表头
@@ -356,6 +357,7 @@ class TestStatusThread(QtCore.QThread):
         self.test_status()
 
     def test_status(self):
+        index = 0
         while True:
             try:
                 queue_status = self.status_queue.get()
@@ -367,20 +369,34 @@ class TestStatusThread(QtCore.QThread):
                 # 后面环境因素或者奇怪的跑脚本失败要做新的处理，目前暂时跟测试完成一样处理
                 elif queue_status == 'TEST_FAIL_FLAG':
                     print('TEST_FAIL_FLAG')
-                    self.ui.stop_test()
+                    sleep(1)
+                    self.ui.set_item_true()
+                    # self.ui.stop_test()
                 elif queue_status == 'TEST_FINISH_FLAG':
                     print('TEST_FINISH_FLAG')
                     # self.ui.stop_test()
                     sleep(1)
                     self.ui.set_item_true()
                 else:
-                    index = self.ui.listWidget.currentRow() + 1
-                    self.ui.listWidget.addItem(queue_status)
+                    sleep(0.05)
                     if 'pass' in queue_status:
-                        self.ui.listWidget.item(index).setBackground(QColor('#7FFF11'))
+                        self.ui.listWidget.takeItem(index-1)
+                        self.ui.listWidget.addItem(queue_status)
+                        self.ui.listWidget.item(index-1).setBackground(QColor('#7FFF11'))
+                        index -= 1
                     elif 'fail' in queue_status:
-                        self.ui.listWidget.item(index).setBackground(QColor('red'))
-                    self.ui.listWidget.setCurrentRow(self.ui.listWidget.currentRow()+1)
+                        self.ui.listWidget.takeItem(index-1)
+                        self.ui.listWidget.addItem(queue_status)
+                        self.ui.listWidget.item(index-1).setBackground(QColor('red'))
+                        index -= 1
+                    elif 'running' in queue_status:
+                        self.ui.listWidget.addItem(queue_status)
+                        self.ui.listWidget.item(index).setBackground(QColor('#FFFF00'))
+                    else:
+                        self.ui.listWidget.addItem(queue_status)
+                    index += 1
+                    self.ui.listWidget.setCurrentRow(index)
+                    self.ui.listWidget.scrollToBottom()
                     self.ui.log.write('')
             except ValueError as error:
                 print('test_status error:')

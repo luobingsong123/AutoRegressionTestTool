@@ -1,5 +1,4 @@
 import os
-import sys
 from subprocess import call
 from time import sleep,localtime,strftime
 import paramiko
@@ -10,19 +9,19 @@ class PyShell(object):
         # self.case = kwargs['用例名']
         # self.step = kwargs['步骤']
         self.msg_log = queue
-        self.comments = kwargs['说明']
+        self.comments = str(kwargs['说明'])
         self.server = kwargs['服务器']
         self.user = str(kwargs['用户名'])
         self.password = str(kwargs['密码'])
         self.shell_str_mod = str(kwargs['发送模式'])
         if self.shell_str_mod == '1':
-            self.shell_str = kwargs['发送命令'].split('|')
+            self.shell_str = str(kwargs['发送命令']).split('|')
         else:
             self.shell_str = [(kwargs['发送命令'])]
-        self.wait_str = kwargs['等待回显'].split('|')
+        self.wait_str = str(kwargs['等待回显']).split('|')
         self.wait_time = kwargs['刷新间隔']
         self.timeout = kwargs['超时时间']
-        self.fail_str = kwargs['失败回显'].split('|')
+        self.fail_str = str(kwargs['失败回显']).split('|')
         # transport和channel
         self.transport = ''
         self.channel = ''
@@ -174,21 +173,25 @@ class TestPerform(object):
                 sleep(self.delay_time * 60)
             while self.retest_time != 0:
                 self.start_time = strftime("%Y%m%d %H：%M：%S", localtime())
-                self.queue_status.put('开测时间:' + self.start_time + '  第' + str(self.ret - self.retest_time) + '次测试')
+                self.queue_status.put('-----------------------------')
+                self.queue_status.put('-------重复执行测试分隔线-------')
+                self.queue_status.put('开测时间:' + self.start_time + '  第' + str(self.ret - self.retest_time) + '次测试***')
                 for case in self.case_index:
                     # case内操作
+                    self.queue_status.put('---------测试用例分隔线--------')
+                    self.queue_status.put('当前用例:' + case + '**')
                     self.class_list = {0:[]}
                     self.report_xlsx = os.path.basename(self.filename).split('.')[0] + self.start_time
-                    self.queue_log.put(
-                        '开始测试用例: %s , %s\n' % (case, self.start_time))
+                    self.queue_log.put('开始测试用例: %s , %s\n' % (case, self.start_time))
                     step_no = 0
                     # 加一步连接复用
                     for step in self.case_step_dict[case]:
+                        self.queue_status.put('测试步骤:' + step + '   ' + self.test_data_dict[case][step]['说明'] + '   ' + 'running')
                         # step的ssh初始化
                         # 判断一下step里面的连接复用标志，如果大于1则复用，否则不复用
                         # print(self.test_data_dict[case][step])
                         step_connect_reuse = self.test_data_dict[case][step]['连接复用']
-                        if step_connect_reuse == 0:
+                        if step_connect_reuse == 0 or step_connect_reuse == 'Non':
                             self.step_init = PyShell(self.queue_log, **self.test_data_dict[case][step])  # 如果是连服务器，则传递字典进去
                             self.class_list[0].append(self.step_init)
                             self.step_init.connect()
@@ -224,9 +227,9 @@ class TestPerform(object):
                         sleep(0.5)
                         result = self.step_result.get(self.case_step_dict[case][step_no])
                         if result is not None and result[0]:
-                            self.queue_status.put(str(case) + '   ' + self.case_step_dict[case][step_no] + '   ' + 'pass')
+                            self.queue_status.put('当前步骤:' + step + '   ' + self.test_data_dict[case][step]['说明'] + '   ' + 'pass')
                         else:
-                            self.queue_status.put(str(case) + '   ' + self.case_step_dict[case][step_no] + '   ' + 'fail')
+                            self.queue_status.put('当前步骤:' + step + '   ' + self.test_data_dict[case][step]['说明'] + '   ' + 'fail')
                         step_no += 1
                     # STEP执行完成后断开ssh连接
                     # print('case:',self.class_list)
