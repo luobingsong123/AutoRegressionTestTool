@@ -175,18 +175,18 @@ class TestPerform(object):
                 self.start_time = strftime("%Y%m%d %H：%M：%S", localtime())
                 self.queue_status.put('-----------------------------')
                 self.queue_status.put('-------重复执行测试分隔线-------')
-                self.queue_status.put('开测时间:' + self.start_time + '  第' + str(self.ret - self.retest_time) + '次测试***')
+                self.queue_status.put('开测时间:' + self.start_time + '  第' + str(self.ret - self.retest_time) + '次测试')
                 for case in self.case_index:
                     # case内操作
                     self.queue_status.put('---------测试用例分隔线--------')
-                    self.queue_status.put('当前用例:' + case + '**')
+                    self.queue_status.put('当前用例:' + case + '')
                     self.class_list = {0:[]}
                     self.report_xlsx = os.path.basename(self.filename).split('.')[0] + self.start_time
                     self.queue_log.put('开始测试用例: %s , %s\n' % (case, self.start_time))
                     step_no = 0
                     # 加一步连接复用
                     for step in self.case_step_dict[case]:
-                        self.queue_status.put('测试步骤:' + step + '   ' + self.test_data_dict[case][step]['说明'] + '   ' + 'running')
+                        self.queue_status.put('当前步骤:' + step + '   ' + self.test_data_dict[case][step]['说明'] + '   ' + 'running')
                         # step的ssh初始化
                         # 判断一下step里面的连接复用标志，如果大于1则复用，否则不复用
                         # print(self.test_data_dict[case][step])
@@ -224,7 +224,6 @@ class TestPerform(object):
                                 sleep(0.5)
                                 # step执行,执行完后返回结果
                                 self.step_result[self.case_step_dict[case][step_no]] = self.class_list[step_connect_reuse].start_test()
-                        sleep(0.5)
                         result = self.step_result.get(self.case_step_dict[case][step_no])
                         if result is not None and result[0]:
                             self.queue_status.put('当前步骤:' + step + '   ' + self.test_data_dict[case][step]['说明'] + '   ' + 'pass')
@@ -234,16 +233,15 @@ class TestPerform(object):
                     # STEP执行完成后断开ssh连接
                     # print('case:',self.class_list)
                     self.close_all_ssh()
+                    self.case_done_flag()
                     self.end_time = strftime("%Y%m%d %H：%M：%S", localtime())
                     self.queue_log.put('当前用例执行完成: %s , %s\n' % (case, self.end_time))
                     self.case_result[case] = self.step_result
                     self.step_result = {}
-                    sleep(0.5)
+                    sleep(1)
                 # self.test_result()
                 self.retest_time -= 1
-                sleep(0.5)
             self.test_done_flag()
-            sleep(3)
         except ValueError as error:
             print(error)
             pass
@@ -310,6 +308,10 @@ class TestPerform(object):
         # 用例执行完成标志
         self.queue_status.put('TEST_FINISH_FLAG')
         # 关闭所有ssh连接
+
+    def case_done_flag(self):
+        # 用例执行完成标志
+        self.queue_status.put('CASE_FINISH_FLAG')
 
     def close_all_ssh(self):
         try:

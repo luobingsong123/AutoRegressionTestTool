@@ -9,7 +9,7 @@ import pandas as pd
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtGui import *
 from py_ssh import AutoRegressionTestTool_main
-from time import sleep,strftime, localtime
+from time import strftime, localtime
 import os
 import queue
 
@@ -144,6 +144,7 @@ class Ui_Dialog(QtCore.QObject):
         self.pushButton_stoptest.setEnabled(True)
         self.delay_time = 0
         # 拆分成两个函数，一个单次 一个循环？
+        self.clear_signal.connect(self.textBrowser.clear)
         if self.lineEdit.text() == '':
             pass
         else:
@@ -157,8 +158,6 @@ class Ui_Dialog(QtCore.QObject):
                 os.makedirs(os.path.join("./", 'report'))
             else:
                 print('The report directory already exists.')
-
-            sleep(0.01)
             self.set_item_flase()
             start_time = strftime("%Y-%m-%d %H-%M-%S", localtime())
             file = os.path.basename(self.filename).split('.')[0] + start_time
@@ -197,6 +196,7 @@ class Ui_Dialog(QtCore.QObject):
         self.start_.terminate()
         self.running_log_thread.terminate()
         self.test_status_thread.terminate()
+        QtCore.QThread.sleep(1)
         if self.lineEdit.text() == '':
             pass
         elif self.start_.isRunning():
@@ -213,7 +213,7 @@ class Ui_Dialog(QtCore.QObject):
             print(e)
         self.msg_queue.queue.clear()
         self.status_queue.queue.clear()
-        sleep(1)
+        QtCore.QThread.sleep(1)
 
     # 获取下拉列表活动状态
     def sheet_value(self, sheet):
@@ -317,14 +317,19 @@ class RunningLogThread(QtCore.QThread):
     def running_log(self):
         queue_log_tail = ''
         lines_count = 0
+        total_data_size = 0
         while True:
             try:
                 # 减少资源占用
                 queue_log = queue_log_tail + self.msg_queue.get()
-                if lines_count > 10000:
-                    self.ui.clear_signal.emit()
-                    lines_count = 0
-                lines_count += len(queue_log.split('\n'))
+                total_data_size += len(queue_log.encode('utf-8'))
+                if total_data_size > 10480000:  # 如果接收到的数据的总大小已经达到10MB
+                    self.ui.clear_signal.emit()  # 清空窗口
+                    total_data_size = 0  # 重置接收到的数据的总大小
+                # if lines_count > 10000:
+                #     self.ui.clear_signal.emit()
+                #     lines_count = 0
+                # lines_count += len(queue_log.split('\n'))
                 if queue_log[-1:] != '\n':
                     last_newline_index = queue_log.rfind('\n')
                     queue_log_tail = queue_log[last_newline_index + 1:]
@@ -348,16 +353,22 @@ class RunningLogThread(QtCore.QThread):
 
 
 class TestStatusThread(QtCore.QThread):
+    scroll_to_bottom = QtCore.pyqtSignal()
+    listWidget_clear = QtCore.pyqtSignal()
+
     def __init__(self, ui, status_queue):
         super().__init__()
         self.ui = ui
         self.status_queue = status_queue
+        self.scroll_to_bottom.connect(self.ui.listWidget.scrollToBottom)
+        self.listWidget_clear.connect(self.ui.listWidget.clear)
 
     def run(self):
         self.test_status()
 
     def test_status(self):
         index = 0
+        case_count = 0
         while True:
             try:
                 queue_status = self.status_queue.get()
@@ -369,16 +380,18 @@ class TestStatusThread(QtCore.QThread):
                 # 后面环境因素或者奇怪的跑脚本失败要做新的处理，目前暂时跟测试完成一样处理
                 elif queue_status == 'TEST_FAIL_FLAG':
                     print('TEST_FAIL_FLAG')
-                    sleep(1)
                     self.ui.set_item_true()
                     # self.ui.stop_test()
                 elif queue_status == 'TEST_FINISH_FLAG':
                     print('TEST_FINISH_FLAG')
                     # self.ui.stop_test()
-                    sleep(1)
                     self.ui.set_item_true()
+                elif queue_status == 'CASE_FINISH_FLAG':    # 用例执行完成,顺便作为清空list的计数标志
+                    # print('CASE_FINISH_FLAG')
+                    # self.ui.stop_test()
+                    # self.ui.set_item_true()
+                    case_count += 1
                 else:
-                    sleep(0.05)
                     if 'pass' in queue_status:
                         self.ui.listWidget.takeItem(index-1)
                         self.ui.listWidget.addItem(queue_status)
@@ -395,9 +408,14 @@ class TestStatusThread(QtCore.QThread):
                     else:
                         self.ui.listWidget.addItem(queue_status)
                     index += 1
-                    self.ui.listWidget.setCurrentRow(index)
-                    self.ui.listWidget.scrollToBottom()
+                    # self.ui.listWidget.setCurrentRow(self.ui.listWidget.currentRow()+1)
+                    self.scroll_to_bottom.emit()  # 发出信号
                     self.ui.log.write('')
+                if case_count > 80:
+                    # self.ui.listWidget.clear()
+                    self.listWidget_clear.emit()
+                    index = 0
+                    case_count = 0
             except ValueError as error:
                 print('test_status error:')
                 print(error)  # 用来停打印
