@@ -387,9 +387,6 @@ class TestStatusThread(QtCore.QThread):
                     # self.ui.stop_test()
                     self.ui.set_item_true()
                 elif queue_status == 'CASE_FINISH_FLAG':    # 用例执行完成,顺便作为清空list的计数标志
-                    # print('CASE_FINISH_FLAG')
-                    # self.ui.stop_test()
-                    # self.ui.set_item_true()
                     case_count += 1
                 else:
                     if 'pass' in queue_status:
@@ -411,7 +408,7 @@ class TestStatusThread(QtCore.QThread):
                     # self.ui.listWidget.setCurrentRow(self.ui.listWidget.currentRow()+1)
                     self.scroll_to_bottom.emit()  # 发出信号
                     self.ui.log.write('')
-                if case_count > 80:
+                if case_count > 50:
                     # self.ui.listWidget.clear()
                     self.listWidget_clear.emit()
                     index = 0

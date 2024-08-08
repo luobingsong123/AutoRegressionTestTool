@@ -7,7 +7,7 @@
 其他内容：
 1.打包成.exe参考命令：pyinstaller -F AutoRegressionTestTool.py --noconsole
 2.如果有调试问题的疑难杂症可以把所有异常处理都打印出来，目前出现的异常部分都是不执行任何操作
-目前测试能运行用力的对应库版本清单：
+目前测试能运行用例的对应库版本清单：
 Package         Version
 --------------- -----------
 bcrypt          4.2.0

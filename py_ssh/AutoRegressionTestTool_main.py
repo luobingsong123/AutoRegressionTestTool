@@ -61,7 +61,8 @@ class PyShell(object):
 
     # 发送要执行的命令
     def send(self, cmd):
-        cmd += ''
+        if 'CTRL+C' in cmd:
+            cmd = '\x03'
         result = ''
         # 发送要执行的命令
         self.channel.send(cmd)
@@ -134,11 +135,6 @@ class PyShell(object):
             self.channel.close()
         except AttributeError as error:
             print(error)
-        try:
-            # print('transport 连接断开')
-            self.transport.close()
-        except AttributeError as error:
-            print(error)
 
 
 # 测试执行主要逻辑代码
@@ -173,12 +169,12 @@ class TestPerform(object):
                 sleep(self.delay_time * 60)
             while self.retest_time != 0:
                 self.start_time = strftime("%Y%m%d %H：%M：%S", localtime())
-                self.queue_status.put('-----------------------------')
-                self.queue_status.put('-------重复执行测试分隔线-------')
+                self.queue_status.put('------------------------------------------------------------')
+                self.queue_status.put('-------------------重复执行测试分隔线-------------------')
                 self.queue_status.put('开测时间:' + self.start_time + '  第' + str(self.ret - self.retest_time) + '次测试')
                 for case in self.case_index:
                     # case内操作
-                    self.queue_status.put('---------测试用例分隔线--------')
+                    self.queue_status.put('----------------------测试用例分隔线---------------------')
                     self.queue_status.put('当前用例:' + case + '')
                     self.class_list = {0:[]}
                     self.report_xlsx = os.path.basename(self.filename).split('.')[0] + self.start_time
