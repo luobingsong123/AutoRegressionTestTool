@@ -13,11 +13,7 @@ class PyShell(object):
         self.server = kwargs['服务器']
         self.user = str(kwargs['用户名'])
         self.password = str(kwargs['密码'])
-        self.shell_str_mod = str(kwargs['发送模式'])
-        if self.shell_str_mod == '1':
-            self.shell_str = str(kwargs['发送命令']).split('|')
-        else:
-            self.shell_str = [(kwargs['发送命令'])]
+        self.shell_str = [(kwargs['发送命令'])]
         self.wait_str = str(kwargs['等待回显']).split('|')
         self.wait_time = kwargs['刷新间隔']
         self.timeout = kwargs['超时时间']
@@ -175,14 +171,14 @@ class TestPerform(object):
                 for case in self.case_index:
                     # case内操作
                     self.queue_status.put('----------------------测试用例分隔线---------------------')
-                    self.queue_status.put('当前用例:' + case + '')
+                    self.queue_status.put('当前用例:' + str(case) + '\n开始时间:' + self.start_time)
                     self.class_list = {0:[]}
                     self.report_xlsx = os.path.basename(self.filename).split('.')[0] + self.start_time
                     self.queue_log.put('开始测试用例: %s , %s\n' % (case, self.start_time))
                     step_no = 0
                     # 加一步连接复用
                     for step in self.case_step_dict[case]:
-                        self.queue_status.put('当前步骤:' + step + '   ' + self.test_data_dict[case][step]['说明'] + '   ' + 'running')
+                        self.queue_status.put(step + '   ' + str(self.test_data_dict[case][step]['说明']) + '   ' + 'running')
                         # step的ssh初始化
                         # 判断一下step里面的连接复用标志，如果大于1则复用，否则不复用
                         # print(self.test_data_dict[case][step])
@@ -203,16 +199,13 @@ class TestPerform(object):
                                 self.step_result[self.case_step_dict[case][step_no]] = self.step_init.start_test()
                             else:
                                 # 如果连接存在，则不用再连接,执行属性数据初始化
+                                # 2024.8.15 不记得这块有什么用了o。O
                                 # self.class_list[step_connect_reuse].__init__(self,self.queue_log, **self.test_data_dict[case][step])
                                 self.class_list[step_connect_reuse].comments = self.test_data_dict[case][step]['说明']
                                 self.class_list[step_connect_reuse].server = self.test_data_dict[case][step]['服务器']
                                 self.class_list[step_connect_reuse].user = self.test_data_dict[case][step]['用户名']
                                 self.class_list[step_connect_reuse].password = str(self.test_data_dict[case][step]['密码'])
-                                self.class_list[step_connect_reuse].shell_str_mod = str(self.test_data_dict[case][step]['发送模式'])
-                                if self.class_list[step_connect_reuse].shell_str_mod == '1':
-                                    self.class_list[step_connect_reuse].shell_str = self.test_data_dict[case][step]['发送命令'].split('|')
-                                else:
-                                    self.class_list[step_connect_reuse].shell_str = [(self.test_data_dict[case][step]['发送命令'])]
+                                self.class_list[step_connect_reuse].shell_str = [(self.test_data_dict[case][step]['发送命令'])]
                                 self.class_list[step_connect_reuse].wait_str = self.test_data_dict[case][step]['等待回显'].split('|')
                                 self.class_list[step_connect_reuse].wait_time = self.test_data_dict[case][step]['刷新间隔']
                                 self.class_list[step_connect_reuse].timeout = self.test_data_dict[case][step]['超时时间']
@@ -222,9 +215,9 @@ class TestPerform(object):
                                 self.step_result[self.case_step_dict[case][step_no]] = self.class_list[step_connect_reuse].start_test()
                         result = self.step_result.get(self.case_step_dict[case][step_no])
                         if result is not None and result[0]:
-                            self.queue_status.put('当前步骤:' + step + '   ' + self.test_data_dict[case][step]['说明'] + '   ' + 'pass')
+                            self.queue_status.put(step + '   ' + str(self.test_data_dict[case][step]['说明']) + '   ' + 'pass')
                         else:
-                            self.queue_status.put('当前步骤:' + step + '   ' + self.test_data_dict[case][step]['说明'] + '   ' + 'fail')
+                            self.queue_status.put(step + '   ' + str(self.test_data_dict[case][step]['说明']) + '   ' + 'fail')
                         step_no += 1
                     # STEP执行完成后断开ssh连接
                     # print('case:',self.class_list)
@@ -243,62 +236,7 @@ class TestPerform(object):
             pass
 
     # 输出测试结果
-    def test_result(self):
-        """
-        :return: 生成测试报告
-        """
-        test_case = []
-        test_case_result = {}
-        test_step = []
-        test_result = []
-        test_comments = []
-        test_pass = 0
-        test_fail = 0
-        for k in self.case_result.keys():
-            for j in self.case_result[k].keys():
-                test_case.append(k)
-                test_step.append(j)
-                if self.case_result[k][j][0]:
-                    test_result.append('pass')
-                    test_case_result[k] = True
-                else:
-                    test_result.append('fail')
-                    test_case_result[k] = False
-                test_comments.append(self.case_result[k][j][1])
-            if test_case_result[k]:
-                test_pass += 1
-            else:
-                test_fail += 1
-        # df = pd.DataFrame({'test_case': test_case, 'test_step': test_step, 'test_result': test_result,
-        #                    'test_comments': test_comments})
-        # df.to_excel('./report/' + self.report_xlsx + '.xlsx',index=False)
-        # 输出html格式报告
-        f = open('./report/' + self.report_xlsx + '.html', 'a')
-        message = """
-        <html>
-        <head></head>
-        <body>
-        <p> </p>
-        <p>测试用例&路径：%s</p>
-        <p>测试用例表：%s</p>
-        <p> </p>
-        <p> </p>
-        <p>测试开始时间：%s</p>
-        <p>测试结束时间：%s</p>
-        <p> </p>
-        <p> </p>
-        <p>执行测试用例数：%s</p>
-        <p>测试通过用例数：%s</p>
-        <p>测试不通过用例数：%s</p>
-        <p> </p>
-        <p> </p>
-        <p>测试用例执行状态：</p>
-        </body>
-        </html>
-        """ % (self.filename, self.sheet_name,self.start_time,self.end_time,len(self.case_result.keys()),test_pass,test_fail)
-        f.write(message)
-        # f.write(df.to_html())
-        f.close()
+
 
     def test_done_flag(self):
         # 用例执行完成标志
