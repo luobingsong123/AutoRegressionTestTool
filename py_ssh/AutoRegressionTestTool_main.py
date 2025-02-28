@@ -98,7 +98,7 @@ class PyShell(object):
                         return False, self.comments + ' fail'
                 else:
                     for i in self.shell_str:
-                        result = self.send(i+'\n')
+                        result = self.send(str(i)+'\n')
                         self.msg_log.put(result)
                     # 判断回显
                     while times < self.timeout:
@@ -145,9 +145,6 @@ class TestPerform(object):
         self.test_data_dict = test_data_dict
         self.case_index = case_index
         self.case_step_dict = case_step_dict
-        # 获取用例内容 改到UI那边线程获取了，后面报告也直接走UI那边落
-        # self.case_read()
-        self.case_result = {}
         self.step_result = {}
         self.delay_time = delay_time
 
@@ -225,7 +222,6 @@ class TestPerform(object):
                     self.case_done_flag()
                     self.end_time = strftime("%Y%m%d %H：%M：%S", localtime())
                     self.queue_log.put('当前用例执行完成: %s , %s\n' % (case, self.end_time))
-                    self.case_result[case] = self.step_result
                     self.step_result = {}
                     sleep(1)
                 # self.test_result()
@@ -236,8 +232,6 @@ class TestPerform(object):
             pass
 
     # 输出测试结果
-
-
     def test_done_flag(self):
         # 用例执行完成标志
         self.queue_status.put('TEST_FINISH_FLAG')
